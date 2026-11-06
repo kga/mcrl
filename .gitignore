@@ -1,0 +1,6 @@
+# ローカル専用の設定（API キーなど）。コミットしない
+mise.local.toml
+.env
+
+# dev/fake-host のローカル状態（mackerel-agent のホスト ID など）
+/dev/fake-host/state/

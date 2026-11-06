@@ -23,7 +23,7 @@
 - Trace の span `startTime` / `endTime` は ISO 8601 文字列（表では `endTime` が number と書かれており矛盾）
 - 監視の `duration` は **型によって単位が違う**: host / external は「分」、service は「直近のポイント数」
 - downtime `duration`、`notificationInterval`、`missingDuration*` は分
-- メトリクス取得の `from` / `to` は「unix time」とだけ書かれている（秒と推定）
+- メトリクス取得の `from` / `to` は「unix time」とだけ書かれているが、**秒** で確定（ミリ秒を渡すと `400 The parameter `from` is too large`）。実測の詳細は「メトリクス取得の実測」を参照
 
 ## ページネーション（3 方式が混在）
 
@@ -38,7 +38,7 @@
 
 ## レート制限
 
-- **全体的なレート制限は未記載**。`X-RateLimit-*` 系ヘッダの記述もない
+- **全体的なレート制限は未記載**。`X-RateLimit-*` 系ヘッダの記述もなく、実測でも通常のレスポンスに rate / retry / limit を含むヘッダはなかった（2026-11-06、`GET /org`）。残り回数を見て事前に絞ることはできず、429 を受けてから対処するしかない
 - 明記されているのは以下のみ:
   - `POST /logs`、`POST /traces`、`GET /apm/*`: **1 リクエスト/秒**、超過で 429
   - `POST /logs` のみ `Retry-After`（秒）ヘッダを返すと明記
@@ -46,10 +46,15 @@
 
 ## エラー
 
-- **エラーレスポンスの JSON 形式は未記載**。ステータスコードと説明文のみ
-- 403 は「権限不足」と「IP 制限外からのアクセス」の両方を意味する
-- AWS インテグレーションだけは権限不足・不正キーを **401** で返す
-- Logs / Traces / APM は不正キーで 401
+ドキュメントにはステータスコードと説明文しかないが、実測（2026-11-06）で以下を確認した。
+
+- **エラーボディは `{"error":{"message":"..."}}`**、`Content-Type: application/json`。存在しないパス（404）、不正キー（401）、バリデーション（400）のいずれも同じ形
+  - 例: `{"error":{"message":"Too many limit"}}`（`GET /alerts?limit=101`）
+  - 例: `{"error":{"message":"Invalid Parameter: obj.serviceName error.path.missing, ..."}}`（`POST /logs` に `{}`）
+- メッセージの文言はエンドポイントごとにばらばら（`monitor is not found.`、`Host Not Found.`、`Alert not found` など）。**文言で分岐してはいけない**
+- **不正なキー・キーなしは全エンドポイントで 401**（`Authentication failed. Please try with valid Api Key.`）。ドキュメント上は多くが 403 と書かれているが、403 は「権限不足」「IP 制限外」の場合
+- AWS インテグレーションはドキュメント上、Write 権限不足も 401 で返す（未実測）
+- **存在しない ID の GET が 400 になることがある**。形式が正しい存在しない ID は 404 だが、`xxxxxxxxxxx` のような ID は `400 Bad request.` になった（ID のデコードに失敗していると推測）。CLI では「ID による取得の 400」は「見つからない、または ID の形式が不正」として扱う
 - 413: メタデータ 100KB 超過、アラートメモ 80KB 超過
 - 409: ダッシュボードの `urlPath` 重複
 
@@ -95,6 +100,13 @@
 - AWS インテグレーション一覧のキーは `aws_integrations`（スネークケース）
 - `GET /hosts.json` は `GET /hosts` と同一
 
+## ID
+
+- 監視・通知チャンネル・通知グループ・ユーザー・ホストの ID は **11 文字の英数字**（実測）
+- 名前解決では「11 文字の英数字なら ID とみなし、それ以外は名前」とする。ホスト名がたまたま 11 文字の英数字の場合に備え、`name:` 接頭辞で強制できるようにする
+- `GET /hosts?name=` は **完全一致・大文字小文字を区別**（`mcrl-fake` や大文字では 0 件）。部分一致の検索が要る場合は CLI 側で一覧を取って絞る
+- mackerel-agent が登録したホストの `displayName` と `customIdentifier` は `null`、`roles` は `{}`
+
 ## 列挙値
 
 - ホストステータス（書き込み可）: `working` / `standby` / `maintenance` / `poweroff`
@@ -113,7 +125,19 @@
 |---|---|
 | `POST /logs` | `from`〜`to` 最大 30 日。`to` は排他 |
 | `GET /apm/*` | 最大 30 分 |
-| メトリクス取得、Traces | 未記載 |
+| メトリクス取得 | 未記載。400 日の範囲でも 200 が返った（実測） |
+| Traces | 未記載 |
+
+## メトリクス取得の実測
+
+2026-11-06、mackerel-agent 0.87.2 を入れた擬似ホストで `GET /hosts/<id>/metrics` を確認した。
+
+- `from` と `to` は **両方必須**。片方だけ・両方なしは `400 Bad request.`
+- `to < from` は 400 にならず、`{"metrics": []}` が返る。CLI 側で事前に弾く
+- 範囲が短いと 1 分刻みの生データ。**範囲が 1 日以上になると、粗い粒度に集約された点が返る**（時刻も丸められる）。エージェントを動かした時間が短く、範囲ごとの正確な粒度までは確認できていない
+- 存在しないメトリクス名は `404 metric not found`
+- mackerel-agent（Linux）が標準で送るメトリクスは 28 種（`cpu.*.percentage`、`loadavg5` など）
+- `GET /tsdb/latest` の値は `{"<hostId>": {"<name>": {"time", "value"}}}` の形（ドキュメントどおり）
 
 ## ドキュメント内の矛盾・要確認
 
@@ -121,5 +145,6 @@
 - external 監視: 入力は `certificationExpiration*`、レスポンス例は `certificationLimit*`
 - Traces の属性フィルタ: 演算子一覧にない `CONTAINS` が例で使われている
 - アラートロジのページの `nextId` 説明が「alerts」と書かれている
-- alert-group-settings の作成・取得レスポンスがラップされているか不明
+- alert-group-settings の作成・取得レスポンスがラップされているか不明（一覧は `{"alertGroupSettings": [...]}` を実測。単体取得は設定 0 件のため未確認）
+- 保存されたログ検索の一覧のキーは `results`（他の一覧はリソース名の複数形）
 - 公式 OpenAPI 定義の有無は未確認
