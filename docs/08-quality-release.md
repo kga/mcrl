@@ -48,7 +48,7 @@ GoReleaser で作る（[decisions.md](decisions.md) D15。リポジトリが pri
 1. main に push すると、tagpr が「リリース PR」（次の版と `CHANGELOG.md`）を作る・更新する
 2. 次の版はリリース PR のラベルで決まる: `tagpr:minor` / `tagpr:major`、なければ patch。マージ済み PR に `feature`・`minor` / `major`・`breaking-change` ラベルがあれば tagpr が自動で付ける
 3. **リリース PR のマージがリリースの承認**。マージすると tagpr がタグを打ち、同じ workflow（`tagpr.yml`）から `cross-platform.yml`（macOS・Windows のテスト）と `release.yml` が呼ばれる
-4. `release.yml` は、GoReleaser で Release の下書きと ghcr のイメージを作り、artifact attestation を付け、バイナリの版とアーカイブの数を確かめてから **自動で公開** し、release attestation を検証する。手で公開する作業はない
+4. `release.yml` は、GoReleaser で Release の下書きと ghcr のイメージを作り、バイナリの版とアーカイブの数を確かめてから **自動で公開** し、release attestation を確かめる（確かめられなくても警告のみ）。手で公開する作業はない
 
 - リポジトリは **immutable releases** を有効にしている（2026-11-07）。公開した Release は、資産もタグも変更・削除できない。そのため GoReleaser は下書きを作ってすべての資産を付け、検査が通ってから workflow が公開する（[decisions.md](decisions.md) D17）。workflow を再実行したときは同じタグの下書きを使い回し（`use_existing_draft`）、途中まで上げた資産は置き換える（`replace_existing_artifacts`）。公開後は `gh release verify <tag>` で GitHub の release attestation を確かめられる（v0.1.0 は有効化の前に公開したので対象外）
 - 変更履歴は GitHub が生成するリリースノート（マージされた PR が単位、分類は `.github/release.yml`）なので、main に直接 push した変更は載らない
@@ -57,7 +57,7 @@ GoReleaser で作る（[decisions.md](decisions.md) D15。リポジトリが pri
 
 ### サプライチェーン
 
-- 成果物に GitHub の artifact attestation で SLSA provenance を付ける（`checksums.txt` に載るアーカイブすべて。`gh attestation verify <file> --repo kga/mcrl` で確かめられる）
+- 成果物に GitHub の artifact attestation で SLSA provenance を付けるのは、リポジトリを公開してから（private では Enterprise Cloud が必要）
 - 成果物への cosign（keyless）署名と SBOM（SPDX）の添付は配布準備のときに入れる（SBOM の生成には CI に syft が要る）
 - Go の依存と GitHub Actions の更新は Dependabot（`cooldown` 7 日。公開直後の版をすぐには取り込まない）
 - `govulncheck` を CI で実行（バージョン固定）
@@ -71,6 +71,7 @@ GoReleaser で作る（[decisions.md](decisions.md) D15。リポジトリが pri
 - CI の `actions-lock` ジョブが `gh actions-lock --verify` で lockfile の不足・ずれを検出する（拡張自体も `--pin` で版を固定）
 - Dependabot が action を更新するときは lockfile も同じ PR で更新される
 - `uses:` はタグ（完全な semver）で書く。lockfile があれば `uses:` に SHA を書く必要はない
+- 同じリポジトリの composite action・reusable workflow は `./` ではなく `$/` で呼ぶ（ランナーに checkout された内容ではなく呼び出し元と同じコミットのものが使われ、呼び出し元の lockfile が適用される。[参考](https://songmu.jp/riji/entry/2026-10-30-github-actions-lockfile.html)）。他リポジトリの reusable workflow（`jobs.<id>.uses`）は lockfile の対象外なので、使う場合は SHA で固定する
 - workflow 内で実行時に取ってくるツール（golangci-lint、goreleaser、govulncheck、gh 拡張）は lockfile の対象外なので、すべてバージョンを固定する
 - その他: `permissions` は既定 `contents: read` でジョブごとに最小限、`actions/checkout` は `persist-credentials: false`、`.github/` は CODEOWNERS でオーナーのレビュー必須
 - リポジトリ設定で「Require lockfile」（Actions のポリシー）を有効にすると、lockfile に載っていない workflow の実行を止められる。設定の変更はオーナーが行う

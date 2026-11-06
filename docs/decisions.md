@@ -22,7 +22,7 @@
 | D14 | 2026-11-06 | CI は push・PR では **Linux のみ**。macOS・Windows はリリースのタグと手動実行のときだけ。Dependabot は月 1 回・1 本にまとめる | private リポジトリの Actions は月 $12 の無料枠で、macOS は $0.062/分と高い。1 回の CI が約 $0.23 から約 $0.04 に下がる。公開リポジトリにしたら見直す。[08-quality-release.md](08-quality-release.md#静的解析ci) |
 | D15 | 2026-11-07 | v0.1.0 は **リポジトリを private のまま** 出し、配布は **GitHub Releases と ghcr.io/kga/mcrl のイメージ** だけにする。Release は下書きで作り、オーナーが確認して公開する | private では artifact attestation（Enterprise Cloud が必要）・Homebrew・aqua が使えないので外す。公開するときに見直す。[08-quality-release.md](08-quality-release.md#配布) |
 | D16 | 2026-11-07 | リリースは **tagpr** で行う。main への push ごとにリリース PR が更新され、マージすると tagpr がタグを打ち、同じ workflow から macOS・Windows のテストと GoReleaser を呼ぶ | 版と変更履歴をリリース PR で確認してから出せる。GITHUB_TOKEN で打ったタグは別 workflow を起動しないため、呼び出し（workflow_call）でつなぐ。Release は GoReleaser が下書きで作る（tagpr の `release = false`）。[08-quality-release.md](08-quality-release.md#配布) |
-| D17 | 2026-11-07 | リポジトリを public にし、Release を **workflow が自動で公開** する。承認はリリース PR のマージで行う。公開前にバイナリの版とアーカイブの数を確かめ、artifact attestation を付け、公開後に release attestation を検証する | 手で公開する二度目の承認は不要（tagpr はリリース PR のマージを承認とみなす設計）。immutable releases のため、公開は資産がすべて揃った最後に行う。public になったので attestation を付け直す。D15 の「private のまま」「オーナーが確認して公開」を置き換える。[08-quality-release.md](08-quality-release.md#配布) |
+| D17 | 2026-11-07 | Release を **workflow が自動で公開** する。承認はリリース PR のマージで行う。公開前にバイナリの版とアーカイブの数を確かめ、公開後に release attestation を確かめる（リポジトリは private のまま） | 手で公開する二度目の承認は不要（tagpr はリリース PR のマージを承認とみなす設計）。immutable releases のため、公開は資産がすべて揃った最後に行う。D15 の「オーナーが確認して公開」を置き換える。[08-quality-release.md](08-quality-release.md#配布) |
 
 ## 未決（優先度順）
 

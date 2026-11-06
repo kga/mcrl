@@ -6,7 +6,8 @@ name: Release
 # - 手動実行（workflow_dispatch）はスナップショットを作るだけで、何も公開しない
 #
 # immutable releases のため、公開後は資産もタグも変えられない。GoReleaser で下書きと ghcr のイメージを
-# 作り、ビルドの出どころの証明（artifact attestation）を付け、成果物を確かめてから最後に公開する。
+# 作り、成果物を確かめてから最後に公開する。
+# リポジトリが private の間は artifact attestation が使えない（Enterprise Cloud が必要）ため付けない。
 on:
   push:
     tags: ["v*"]
@@ -32,8 +33,6 @@ jobs:
     permissions:
       contents: write # GitHub Releases
       packages: write # ghcr.io
-      id-token: write # artifact attestation
-      attestations: write
     env:
       TAG: ${{ inputs.tag || github.ref_name }}
       PUBLISH: ${{ github.event_name != 'workflow_dispatch' }}
@@ -59,11 +58,6 @@ jobs:
           args: release --clean ${{ github.event_name == 'workflow_dispatch' && '--snapshot' || '' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Attest build provenance
-        if: env.PUBLISH == 'true'
-        uses: actions/attest-build-provenance@v4.2.2
-        with:
-          subject-checksums: dist/checksums.txt
       - name: Check the built binary and the draft
         if: env.PUBLISH == 'true'
         env:
@@ -91,7 +85,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # immutable release の attestation は公開直後に作られるので、少し待って確かめる
+          # immutable release の attestation は公開直後に作られるので、少し待って確かめる。
+          # private リポジトリで作られない場合もあるので、確かめられなくても失敗にはしない
           for i in 1 2 3 4 5 6; do
             if gh release verify "$TAG"; then exit 0; fi
             sleep 10
