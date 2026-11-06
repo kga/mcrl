@@ -56,9 +56,6 @@ release:
   draft: true
   prerelease: auto
 
+# tagpr の CHANGELOG.md と同じく、GitHub が生成するリリースノート（.github/release.yml の分類）を使う
 changelog:
-  use: github
-  sort: asc
-  filters:
-    exclude:
-      - "^Merge pull request"
+  use: github-native

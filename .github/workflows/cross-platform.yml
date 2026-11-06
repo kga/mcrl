@@ -1,11 +1,17 @@
 name: Cross-platform
 
 # macOS・Windows のランナーは Linux より高い（macOS は約 10 倍）ため、
-# リリースのタグと手動実行のときだけ回す
+# リリースのとき（tagpr.yml から呼ばれる）と手動実行のときだけ回す
 on:
   push:
-    tags: ["v*"]
+    tags: ["v*"] # 人が手で打ったタグ用。tagpr のタグでは tagpr.yml から呼ばれる
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      ref:
+        description: Git ref to test
+        type: string
+        required: true
 
 permissions:
   contents: read
@@ -25,6 +31,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7.0.1
         with:
+          ref: ${{ inputs.ref || github.ref }}
           persist-credentials: false
       - uses: actions/setup-go@v7.0.0
         with:

@@ -1,0 +1,14 @@
+# GitHub が生成するリリースノート（tagpr の CHANGELOG.md と GoReleaser の Release 本文）の分類
+changelog:
+  exclude:
+    labels:
+      - tagpr
+  categories:
+    - title: Breaking changes
+      labels: [breaking-change, major]
+    - title: New features
+      labels: [feature, minor]
+    - title: Dependencies
+      labels: [dependencies]
+    - title: Other changes
+      labels: ["*"]

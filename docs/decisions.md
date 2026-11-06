@@ -21,6 +21,7 @@
 | D13 | 2026-11-06 | GitHub Actions は **workflow lockfile（actions.lock）** で推移的な依存まで commit に固定し、CI で `gh actions-lock --verify` を実行する | タグの付け替えや乗っ取りで別のコードが実行されるのを防ぐ。lockfile の対象外（実行時に取得するツール）はバージョン固定で補う。[08-quality-release.md](08-quality-release.md#github-actions-の固定actionslock) |
 | D14 | 2026-11-06 | CI は push・PR では **Linux のみ**。macOS・Windows はリリースのタグと手動実行のときだけ。Dependabot は月 1 回・1 本にまとめる | private リポジトリの Actions は月 $12 の無料枠で、macOS は $0.062/分と高い。1 回の CI が約 $0.23 から約 $0.04 に下がる。公開リポジトリにしたら見直す。[08-quality-release.md](08-quality-release.md#静的解析ci) |
 | D15 | 2026-11-07 | v0.1.0 は **リポジトリを private のまま** 出し、配布は **GitHub Releases と ghcr.io/kga/mcrl のイメージ** だけにする。Release は下書きで作り、オーナーが確認して公開する | private では artifact attestation（Enterprise Cloud が必要）・Homebrew・aqua が使えないので外す。公開するときに見直す。[08-quality-release.md](08-quality-release.md#配布) |
+| D16 | 2026-11-07 | リリースは **tagpr** で行う。main への push ごとにリリース PR が更新され、マージすると tagpr がタグを打ち、同じ workflow から macOS・Windows のテストと GoReleaser を呼ぶ | 版と変更履歴をリリース PR で確認してから出せる。GITHUB_TOKEN で打ったタグは別 workflow を起動しないため、呼び出し（workflow_call）でつなぐ。Release は GoReleaser が下書きで作る（tagpr の `release = false`）。[08-quality-release.md](08-quality-release.md#配布) |
 
 ## 未決（優先度順）
 

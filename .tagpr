@@ -1,0 +1,12 @@
+# tagpr の設定（https://github.com/Songmu/tagpr）
+# - バージョンはタグだけで管理する（バイナリへは GoReleaser が ldflags で埋め込む）
+# - GitHub Release は GoReleaser が作るので tagpr では作らない
+# - 次のバージョンはリリース PR のラベルで決める（tagpr:minor / tagpr:major。なければ patch）
+[tagpr]
+	vPrefix = true
+	releaseBranch = main
+	versionFile = -
+	changelog = true
+	release = false
+	majorLabels = major,breaking-change
+	minorLabels = minor,feature

@@ -43,12 +43,16 @@ GoReleaser で作る（[decisions.md](decisions.md) D15。リポジトリが pri
 | Go | `go install github.com/kga/mcrl/cmd/mcrl@latest` | リポジトリを公開したら |
 | Homebrew / aqua / Scoop / WinGet / deb・rpm | | リポジトリを公開するときに検討 |
 
-リリースの手順:
+リリースの手順（[tagpr](https://github.com/Songmu/tagpr)、[decisions.md](decisions.md) D16）:
 
-1. `gh workflow run cross-platform.yml` で macOS・Windows のテストを通す
-2. `gh workflow run release.yml` でスナップショット（公開しない）を作り、イメージのビルドまで通ることを確かめる
-3. `git tag v0.x.y && git push origin v0.x.y` で Release の下書きとイメージが作られる
+1. main に push すると、tagpr が「リリース PR」（次の版と `CHANGELOG.md`）を作る・更新する
+2. 次の版はリリース PR のラベルで決まる: `tagpr:minor` / `tagpr:major`、なければ patch。マージ済み PR に `feature`・`minor` / `major`・`breaking-change` ラベルがあれば tagpr が自動で付ける
+3. リリース PR をマージすると、tagpr がタグを打ち、同じ workflow（`tagpr.yml`）から `cross-platform.yml`（macOS・Windows のテスト）と `release.yml`（GoReleaser）が呼ばれる
 4. GitHub の Releases で下書きを確認して公開する
+
+- 変更履歴は GitHub が生成するリリースノート（マージされた PR が単位、分類は `.github/release.yml`）なので、main に直接 push した変更は載らない
+- `gh workflow run release.yml` でスナップショット（公開しない）を作れる。人が手で `v*` タグを push した場合も `release.yml` と `cross-platform.yml` が動く
+- リポジトリ設定 Settings → Actions → General → Workflow permissions の「Allow GitHub Actions to create and approve pull requests」が必要
 
 ### サプライチェーン
 
