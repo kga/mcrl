@@ -76,6 +76,9 @@ mcrl
 |---|---|---|
 | `host list` | `--service`、`--role`（複数可）、`--name`、`--status`（複数可、`all` で全て）、`--custom-identifier` | `GET /hosts` |
 | `host get <host>` | 詳細 | `GET /hosts/<id>`、`GET /hosts-by-custom-identifier/<cid>` |
+| `host create --name n` | エージェントなしでホストを登録（`--role`、`--check`、`--custom-identifier`、`--display-name`、`--memo`、または `-f`）。`meta` は既定で `{}`。登録後に取り直して出す | `POST /hosts` |
+| `host update <host>` | 今の値（入力に使える項目だけ）にフラグ・`-f` を重ねて送る。ロールは `host role` で変える | `GET` + `PUT /hosts/<id>` |
+| `host edit <host>` | name・displayName・customIdentifier・memo・meta・interfaces を YAML で編集 | `GET` + `PUT /hosts/<id>` |
 | `host status <status> <host>...` | ステータス変更。31 台以上は 30 台ずつに分けて送る | `POST /hosts/<id>/status`、`POST /hosts/bulk-update-statuses` |
 | `host retire <host>...` | 退役。30 台ずつに分割。確認画面に対象ホスト名を列挙 | `POST /hosts/<id>/retire`、`POST /hosts/bulk-retire` |
 | `host role set <host> <svc:role>...` | ロールを置き換え | `PUT /hosts/<id>/role-fullnames` |

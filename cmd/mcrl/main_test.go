@@ -264,6 +264,8 @@ func newFakeAPI(logPath string) http.Handler {
 			echo("dt000000001")
 		case route == "PUT /api/v0/graph-annotations/anno1":
 			echo("anno1")
+		case route == "POST /api/v0/hosts", route == "PUT /api/v0/hosts/5Vf7Be7guuy":
+			writeJSON(w, 200, `{"id":"5Vf7Be7guuy"}`)
 		case route == "POST /api/v0/services":
 			writeJSON(w, 200, string(reqBody))
 		case strings.HasPrefix(route, "GET /api/v0/hosts/"):

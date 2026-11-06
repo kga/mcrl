@@ -35,6 +35,7 @@ func collect(seq iter.Seq2[json.RawMessage, error], limit int, keep func(json.Ra
 func newHostCmd(f *cmdutil.Factory) *cobra.Command {
 	return newGroup("host", "Manage hosts", []string{"hosts"},
 		newHostListCmd(f), newHostGetCmd(f), newHostMonitorStatusCmd(f),
+		newHostCreateCmd(f), newHostUpdateCmd(f), newHostEditCmd(f),
 		newHostStatusCmd(f), newHostRetireCmd(f), newHostRoleCmd(f))
 }
 

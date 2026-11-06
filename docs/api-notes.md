@@ -119,6 +119,13 @@
 - `GET /hosts`（全ステータス指定でも）と `GET /hosts?name=` には出てこない。そのため名前では解決できず、`id:` で指定する必要がある
 - 退役したホストに付いていたチェック監視（`GET /monitoring/checks`）は残る。チェック監視を消す API はない
 
+## API だけで登録したホスト（実測 2026-11-07）
+
+- `POST /hosts` は `meta: {}` で登録でき、`{"id": "..."}` を返す。登録直後の `status` は `working`、`size` は `standard`
+- ホストのオブジェクトには `checks` が含まれない（登録時に渡したチェック名は取得できない）。チェック監視としては `check report` 後に `GET /monitoring/checks` に現れる
+- `PUT /hosts/<id>` で `customIdentifier` に `""` を送ると `null` になる。`displayName` を送らないと `null` のまま
+- `PUT /hosts/<id>` に `roleFullnames` を含めなければ、ロールはそのまま残る
+
 ## 書き込み系の実測（2026-11-06）
 
 - `PUT /hosts/<id>/role-fullnames` の後のホストの `roles` は、サービスごとのロール名の配列（順序は追加順ではない）

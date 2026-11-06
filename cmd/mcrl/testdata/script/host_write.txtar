@@ -1,0 +1,24 @@
+env MACKEREL_APIKEY=good-key
+
+# host create: meta は既定で {}、ロールとチェックはフラグで。登録後に取り直して出す
+exec mcrl host create --name router-1 --role network:router --check backup --check 'nightly=daily batch' --custom-identifier r1.example.com
+grep 'BODY \{"checks":\[\{"name":"backup"\},\{"memo":"daily batch","name":"nightly"\}\],"customIdentifier":"r1.example.com","meta":\{\},"name":"router-1","roleFullnames":\["network:router"\]\}' $WORK/requests.log
+stdout '"name":"web-1"'
+! exec mcrl host create --memo x
+stderr '--name is required'
+! exec mcrl host create --name x --role bad
+stderr 'want <service>:<role>'
+
+# host update: 今の値（入力に使える項目だけ）にフラグを重ねて送る
+exec mcrl host update web-1 --memo 'new memo' --no-refetch
+grep 'BODY \{"memo":"new memo","meta":\{\},"name":"web-1"\}' $WORK/requests.log
+stdout '^\{"id":"5Vf7Be7guuy"\}$'
+
+# host edit: status や roles などの読み取り専用の項目は出さず、送らない
+env EDITOR=fakeeditor
+env FAKE_EDIT_FROM='name: web-1'
+env FAKE_EDIT_TO='name: web-1-renamed'
+exec mcrl host edit web-1 --yes
+stderr '^\+ name: web-1-renamed$'
+! stderr 'status:'
+grep 'BODY \{"meta":\{\},"name":"web-1-renamed"\}' $WORK/requests.log
