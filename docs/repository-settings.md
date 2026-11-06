@@ -1,6 +1,6 @@
 # リポジトリの設定
 
-GitHub と Claude Code 側で、コードの外にある設定の一覧。workflow はこれらが揃っている前提で書いてある（[decisions.md](decisions.md) D18）。
+GitHub 側で、コードの外にある設定の一覧。workflow はこれらが揃っている前提で書いてある（[decisions.md](decisions.md) D18）。
 
 ## GitHub App（tagpr 用）
 
@@ -37,18 +37,18 @@ Settings → Rules → Rulesets の `main` 用ルールセット（既存の Res
 | Bypass list | 空 | オーナー（Claude もオーナーのトークンで動く）も含めて例外を作らない |
 | Restrict deletions | ✓ | |
 | Block force pushes | ✓ | main の履歴を書き換えない（PR のブランチは対象外） |
-| Require linear history | ✓ | squash マージだけにするので、main は 1 PR = 1 コミット |
+| Require linear history | ✗ | マージは merge commit で行う（[decisions.md](decisions.md) D19）。merge commit は履歴を分岐させるので付けられない |
 | Require a pull request before merging | ✓、Required approvals **0** | 一人なので承認は求めず、PR を通すことだけを強制する |
 | Require status checks to pass | ✓、チェック **`ci-ok`**（GitHub Actions） | CI の結果を 1 つに集約したジョブ。変更が文書だけなら重いジョブを飛ばして成功する |
-| 　Require branches to be up to date | ✗ | Dependabot や tagpr の PR が main に遅れるたびに止まるのを避ける。squash + 線形履歴で十分 |
-| Require signed commits | ✓（任意） | squash マージのコミットは GitHub が署名するので満たせる |
+| 　Require branches to be up to date | ✗ | Dependabot や tagpr の PR が main に遅れるたびに止まるのを避ける |
+| Require signed commits | ✗ | merge commit ではブランチのコミットも main に入る。ブランチのコミットに署名していないので付けない |
 
 ## General（Settings → General → Pull Requests）
 
 | 項目 | 設定 |
 |---|---|
-| Allow merge commits | ✗ |
-| Allow squash merging | ✓、Default commit message: **Pull request title and description** |
+| Allow merge commits | ✓、Default commit message: **Pull request title**（既定の `Merge pull request #N from ...` より何の変更かが読める） |
+| Allow squash merging | ✗ |
 | Allow rebase merging | ✗ |
 | Always suggest updating pull request branches | ✓ |
 | Allow auto-merge | ✓ |
@@ -66,17 +66,3 @@ Settings → Rules → Rulesets の `main` 用ルールセット（既存の Res
 
 - Settings → General → Releases: **Enable release immutability** ✓
 - パッケージ `ghcr.io/kga/mcrl` は private（リポジトリを公開するときに合わせて公開する）
-
-## Claude Code（このリポジトリでの許可）
-
-PR のブランチを最新の main に rebase して push し直すため、`.claude/settings.local.json`（コミットしない）に許可を足す:
-
-```json
-{
-  "permissions": {
-    "allow": ["Bash(git push --force-with-lease:*)"]
-  }
-}
-```
-
-main への force push はルールセットで拒否されるので、この許可で main が書き換わることはない。

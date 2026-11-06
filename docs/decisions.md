@@ -24,6 +24,7 @@
 | D16 | 2026-11-07 | リリースは **tagpr** で行う。main への push ごとにリリース PR が更新され、マージすると tagpr がタグを打ち、同じ workflow から macOS・Windows のテストと GoReleaser を呼ぶ | 版と変更履歴をリリース PR で確認してから出せる。GITHUB_TOKEN で打ったタグは別 workflow を起動しないため、呼び出し（workflow_call）でつなぐ。Release は GoReleaser が下書きで作る（tagpr の `release = false`）。[08-quality-release.md](08-quality-release.md#配布) |
 | D17 | 2026-11-07 | Release を **workflow が自動で公開** する。承認はリリース PR のマージで行う。公開前にバイナリの版とアーカイブの数を確かめ、公開後に release attestation を確かめる（リポジトリは private のまま） | 手で公開する二度目の承認は不要（tagpr はリリース PR のマージを承認とみなす設計）。immutable releases のため、公開は資産がすべて揃った最後に行う。D15 の「オーナーが確認して公開」を置き換える。[08-quality-release.md](08-quality-release.md#配布) |
 | D18 | 2026-11-07 | main はルールセットで守り、**PR 必須・必須チェック `ci-ok`・線形履歴**にする。マージは **squash のみ** で、PR を作ったら auto-merge を有効にする。tagpr は **GitHub App のトークン** を使い、リリースはタグで起動する `release.yml` に戻す | 一人でも PR と CI を必ず通す。承認は求めない（自分の PR は承認できない）。必須チェックを 1 つの集約ジョブにすると、文書だけの PR でも報告され止まらない。App のトークンならリリース PR でも CI が動き、タグで別 workflow も起動できるので、workflow_call の連鎖が要らなくなる。設定の一覧は [repository-settings.md](repository-settings.md) |
+| D19 | 2026-11-07 | マージは **merge commit** にする（D18 の squash を置き換える）。ルールセットの線形履歴と署名必須は付けない | オーナーの好み。ブランチのコミットが main に残り、`git log --first-parent main` で PR 単位にも追える。merge commit は履歴が分岐するので線形履歴とは両立せず、ブランチのコミットに署名していないので署名必須も付けない。[repository-settings.md](repository-settings.md) |
 
 ## 未決（優先度順）
 
