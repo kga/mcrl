@@ -70,6 +70,7 @@ GoReleaser で作る（[decisions.md](decisions.md) D15。リポジトリが pri
 - CI の `actions-lock` ジョブが `gh actions-lock --verify` で lockfile の不足・ずれを検出する（拡張自体も `--pin` で版を固定）
 - Dependabot が action を更新するときは lockfile も同じ PR で更新される
 - `uses:` はタグ（完全な semver）で書く。lockfile があれば `uses:` に SHA を書く必要はない
+- 同じリポジトリの composite action・reusable workflow は `./` ではなく `$/` で呼ぶ（ランナーに checkout された内容ではなく呼び出し元と同じコミットのものが使われ、呼び出し元の lockfile が適用される。[参考](https://songmu.jp/riji/entry/2026-10-30-github-actions-lockfile.html)）。他リポジトリの reusable workflow（`jobs.<id>.uses`）は lockfile の対象外なので、使う場合は SHA で固定する
 - workflow 内で実行時に取ってくるツール（golangci-lint、goreleaser、govulncheck、gh 拡張）は lockfile の対象外なので、すべてバージョンを固定する
 - その他: `permissions` は既定 `contents: read` でジョブごとに最小限、`actions/checkout` は `persist-credentials: false`、`.github/` は CODEOWNERS でオーナーのレビュー必須
 - リポジトリ設定で「Require lockfile」（Actions のポリシー）を有効にすると、lockfile に載っていない workflow の実行を止められる。設定の変更はオーナーが行う

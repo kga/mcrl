@@ -3,6 +3,8 @@ name: tagpr
 # main に push されるたびにリリース PR を作る・更新する。リリース PR をマージすると
 # tagpr がタグを打ち、続けて macOS・Windows のテストとリリース（GitHub Releases の下書き・ghcr）を行う。
 # GITHUB_TOKEN で打ったタグは別の workflow を起動しないので、同じ workflow の中で呼び出す。
+# 呼び出しは ./ ではなく $/ で書く: ランナーに checkout された内容ではなく、この workflow と同じ
+# コミットの workflow が使われ、このリポジトリの actions.lock が正しく適用される。
 on:
   push:
     branches: [main]
@@ -36,7 +38,7 @@ jobs:
   cross-platform:
     needs: tagpr
     if: needs.tagpr.outputs.tag != ''
-    uses: ./.github/workflows/cross-platform.yml
+    uses: $/.github/workflows/cross-platform.yml
     with:
       ref: ${{ needs.tagpr.outputs.tag }}
 
@@ -46,6 +48,6 @@ jobs:
     permissions:
       contents: write
       packages: write
-    uses: ./.github/workflows/release.yml
+    uses: $/.github/workflows/release.yml
     with:
       tag: ${{ needs.tagpr.outputs.tag }}
