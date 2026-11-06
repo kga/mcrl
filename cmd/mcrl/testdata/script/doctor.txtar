@@ -1,0 +1,29 @@
+env MACKEREL_APIKEY=good-key
+exec mcrl doctor --jq '.checks[] | "\(.name) \(.status)"'
+stdout '^config ok$'
+stdout '^apiKey ok$'
+stdout '^api ok$'
+
+env MACKEREL_APIKEY=bad
+! exec mcrl doctor --jq '.checks[] | select(.status == "fail") | .name'
+stdout '^api$'
+
+env MACKEREL_APIKEY=
+! exec mcrl doctor --jq '.checks[] | select(.status == "fail") | .name'
+stdout '^apiKey$'
+
+# 壊れた設定ファイルは位置付きで報告する
+mkdir $HOME/.config/mcrl
+cp broken.toml $HOME/.config/mcrl/config.toml
+! exec mcrl doctor --jq '.checks[0].detail'
+stdout 'config.toml'
+
+exec mcrl version --jq '.os'
+stdout .
+
+exec mcrl config path --jq '.config'
+stdout 'home/.config/mcrl/config.toml$'
+
+-- broken.toml --
+[profiles.x]
+unknown_key = 1

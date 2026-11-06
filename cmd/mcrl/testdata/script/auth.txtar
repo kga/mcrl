@@ -1,0 +1,89 @@
+# キーがなければ終了コード 3 とヒント
+exec sh -c 'mcrl api /org; echo exit=$?'
+stdout 'exit=3'
+stderr 'mcrl auth login'
+
+# 端末でなければ --with-token が要る
+! exec mcrl auth login
+stderr 'with-token'
+
+# 不正なキーは保存しない
+stdin bad-key.txt
+! exec mcrl auth login --with-token
+stderr 'verifying the API key'
+! exists $WORK/keyring.json
+
+# 正しいキーはキーチェーンに入り、最初のプロファイルが既定になる
+stdin good-key.txt
+exec mcrl auth login --with-token
+stdout '"storage":"keyring"'
+stdout '"name":"test-org"'
+grep 'default_profile = .default.' $HOME/.config/mcrl/config.toml
+! grep api_key $HOME/.config/mcrl/config.toml
+
+exec mcrl api /org
+stdout test-org
+
+exec mcrl auth status --jq '.apiKey.source, .organization.name, .profile.source'
+cmp stdout status.txt
+
+# 環境変数のキーが優先される
+env MACKEREL_APIKEY=other-key
+exec mcrl api /org
+stdout other-org
+exec mcrl auth status --profile default --jq '.apiKey.source'
+stdout 'env:MACKEREL_APIKEY'
+stderr 'using the API key from MACKEREL_APIKEY'
+env MACKEREL_APIKEY=
+
+# 2 つ目のプロファイル。キーチェーンが使えなければ --insecure-storage で平文保存
+env MCRL_TEST_KEYRING=$WORK/unavailable.json
+stdin other-key.txt
+! exec mcrl auth login --profile second --with-token
+stderr 'insecure-storage'
+stdin other-key.txt
+exec mcrl auth login --profile second --with-token --insecure-storage --base-url $SERVER
+stdout '"storage":"config:api_key"'
+grep 'api_key = .other-key.' $HOME/.config/mcrl/config.toml
+env MCRL_TEST_KEYRING=$WORK/keyring.json
+
+exec mcrl auth list --jq '.[] | "\(.name) \(.default)"'
+stdout '^default true$'
+stdout '^second false$'
+
+exec mcrl api /org --profile second
+stdout other-org
+env MCRL_PROFILE=second
+exec mcrl api /org
+stdout other-org
+env MCRL_PROFILE=
+
+exec mcrl auth switch second
+exec mcrl api /org
+stdout other-org
+! exec mcrl auth switch nope
+stderr 'not defined'
+
+exec mcrl auth token --profile default
+stdout '^good-key$'
+
+# logout でキーチェーンと平文の両方から消える
+exec mcrl auth logout --profile default
+stdout '"removed":\["keyring"\]'
+exec mcrl auth logout --profile second
+stdout '"removed":\["config:api_key"\]'
+! grep api_key $HOME/.config/mcrl/config.toml
+exec sh -c 'mcrl auth status; echo exit=$?'
+stdout 'exit=3'
+stdout '"apiKey":null'
+
+-- good-key.txt --
+good-key
+-- other-key.txt --
+other-key
+-- bad-key.txt --
+bad-key
+-- status.txt --
+keyring
+test-org
+config

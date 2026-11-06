@@ -231,7 +231,7 @@ mcrl log search --service web --since 1h --where 'res.status>=500' --severity er
 
 | コマンド | 説明 |
 |---|---|
-| `api <path>` | 生 API。`-X` でメソッド、`-f` で body、`-F key=value` でフィールド、`--paginate` で全ページ取得、`-i` でヘッダ表示。`/api/v0` は省略可 |
+| `api <path>` | 生 API。`-X` でメソッド、`-f` で body、`-F key=value` で型付きフィールド（GET/DELETE ではクエリ）、`--raw-field` で常に文字列のフィールド、`-H` でヘッダ、`--paginate` で `nextId` をたどって全ページ取得、`-i` でステータスとヘッダを stderr に表示。`/api/v0` は省略可 |
 | `open [<url-path>]` | Web コンソールを開く（組織名は `GET /org` から取得してキャッシュ） |
 | `doctor` | 設定ファイル・キーの保存場所・ベース URL への疎通・キーの有効性・時計のずれ・プロキシ設定を診断 |
 | `completion <shell>` | 補完スクリプトを出力。ホスト名・監視名などは API から動的に補完（結果は短時間キャッシュ） |

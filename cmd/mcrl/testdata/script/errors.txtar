@@ -1,0 +1,40 @@
+# 終了コードとエラー出力（stderr が TTY でなければ 1 行の JSON）
+env MACKEREL_APIKEY=good-key
+
+exec sh -c 'mcrl api /hosts/abcdefghijk; echo exit=$?'
+stdout 'exit=4'
+stderr '^\{"error":\{"code":"not_found","message":"Host Not Found. \(HTTP 404 GET /api/v0/hosts/abcdefghijk\)","status":404\}\}$'
+
+exec sh -c 'MACKEREL_APIKEY=bad mcrl api /org; echo exit=$?'
+stdout 'exit=3'
+stderr '"code":"unauthorized"'
+stderr '"hint":"check the API key'
+
+exec sh -c 'mcrl api; echo exit=$?'
+stdout 'exit=2'
+stderr '"code":"usage"'
+
+exec sh -c 'mcrl api /org --no-such-flag; echo exit=$?'
+stdout 'exit=2'
+
+exec sh -c 'mcrl no-such-command; echo exit=$?'
+stdout 'exit=2'
+
+exec sh -c 'mcrl api /org -o yaml; echo exit=$?'
+stdout 'exit=2'
+stderr 'valid: json, jsonl'
+
+exec sh -c 'mcrl api /org --jq ".[" ; echo exit=$?'
+stdout 'exit=2'
+stderr 'invalid --jq expression'
+
+exec sh -c 'MCRL_API_BASE=http://127.0.0.1:1 mcrl api /org; echo exit=$?'
+stdout 'exit=7'
+stderr '"code":"network"'
+
+# --paginate は GET のみ
+exec sh -c 'mcrl api -X POST /alerts --paginate; echo exit=$?'
+stdout 'exit=2'
+
+exec mcrl help exit-codes
+stdout '130  interrupted'

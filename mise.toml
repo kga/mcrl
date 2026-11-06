@@ -1,0 +1,20 @@
+[tools]
+go = "1.27.3"
+golangci-lint = "2.15.0"
+goreleaser = "2.20.0"
+
+[tasks.build]
+description = "bin/mcrl をビルドする"
+run = "go build -trimpath -o bin/mcrl ./cmd/mcrl"
+
+[tasks.test]
+description = "全テストを実行する"
+run = "go test -race ./..."
+
+[tasks.lint]
+description = "golangci-lint を実行する"
+run = "golangci-lint run"
+
+[tasks.snapshot]
+description = "GoReleaser でリリース成果物をローカルに作る（公開しない）"
+run = "goreleaser release --snapshot --clean"

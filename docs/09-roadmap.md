@@ -4,7 +4,9 @@
 
 各マイルストーンは「そこで止めても使えるもの」になるように切る。
 
-## M0: 土台
+## M0: 土台（2026-11-06 完了）
+
+`config` は `config path` のみ。`--paginate` は `nextId` 方式のみ対応。
 
 - リポジトリ構成、`mise.toml`、CI、GoReleaser（リリースが通るところまで）
 - `internal/httpx`（認証・リトライ・デバッグログ）、`internal/output`（json / jsonl、`--jq`）

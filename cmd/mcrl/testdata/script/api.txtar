@@ -1,0 +1,70 @@
+env MACKEREL_APIKEY=good-key
+
+# 応答は API のまま 1 行の JSON で出る（パイプなので TTY ではない）
+exec mcrl api /org
+cmp stdout org.json
+
+# /api/v0 は省略できる。--jq の文字列は引用符なしで出る
+exec mcrl api hosts --jq '.hosts[].id'
+cmp stdout ids.txt
+
+# jsonl は配列を 1 行 1 要素にする
+exec mcrl api /hosts -o jsonl --jq '.hosts'
+stdout -count=2 '^\{"createdAt":'
+
+# GET の --field はクエリパラメータになる。パス中のクエリとも合わさる
+exec mcrl api '/hosts?service=web' -F status=working -F status=standby
+grep 'GET /api/v0/hosts\?service=web&status=working&status=standby' $WORK/requests.log
+
+# POST の --field は型付きの JSON ボディになる。--raw-field は常に文字列
+exec mcrl api -X POST /graph-annotations -F title=deploy -F from=1762390800 -F flag=true --raw-field service=2024
+stdout '"from":1762390800'
+stdout '"flag":true'
+stdout '"service":"2024"'
+stdout '"id":"anno1"'
+
+# --file でボディを渡すと POST になる
+exec mcrl api /graph-annotations -f body.json
+stdout '"title":"from file"'
+! exec mcrl api /graph-annotations -f broken.json
+stderr '"code":"usage"'
+
+# --dry-run は送らずにリクエストを出す
+exec mcrl api -X POST /graph-annotations -F title=x --dry-run
+stdout '"method":"POST"'
+stdout '"url":"http://127.0.0.1:[0-9]+/api/v0/graph-annotations"'
+! grep 'title=x' $WORK/requests.log
+
+# --paginate は nextId をたどって配列をつなぐ
+exec mcrl api /alerts --paginate --jq '[.alerts[].id] | join(",")'
+stdout '^a1,a2,a3$'
+! stdout nextId
+grep 'GET /api/v0/alerts\?nextId=a2' $WORK/requests.log
+
+# 5xx は自動で再試行される
+exec mcrl api /flaky
+stdout '"ok":true'
+
+# 空のボディは何も出さない
+exec mcrl api -X DELETE /monitors/m1
+! stdout .
+
+# --include はステータスとヘッダを stderr に出す
+exec mcrl api /org -i
+stderr '^HTTP 200 OK'
+stderr 'Content-Type: application/json'
+
+# --debug は API キーを伏せる
+exec mcrl api /org --debug
+stderr '> X-Api-Key: \*\*\*'
+! stderr good-key
+
+-- org.json --
+{"name":"test-org","displayName":null}
+-- ids.txt --
+5Vf7Be7guuy
+5Vf7Be7guuz
+-- body.json --
+{"title":"from file","service":"web","from":1,"to":2}
+-- broken.json --
+{"title":

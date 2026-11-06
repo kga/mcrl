@@ -4,3 +4,7 @@ mise.local.toml
 
 # dev/fake-host のローカル状態（mackerel-agent のホスト ID など）
 /dev/fake-host/state/
+
+# ビルド成果物
+/bin/
+/dist/
