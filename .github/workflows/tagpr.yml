@@ -4,7 +4,8 @@ name: tagpr
 # GitHub App のトークンを使うので、
 # - リリース PR でも CI が動き、main の必須チェック（ci-ok）を満たせる
 # - tagpr が打ったタグで release.yml が起動する（GITHUB_TOKEN のタグは別 workflow を起動しない）
-# App の Client ID は変数 TAGPR_APP_CLIENT_ID、秘密鍵はシークレット TAGPR_APP_PRIVATE_KEY に置く。
+# App の Client ID（変数 TAGPR_APP_CLIENT_ID）と秘密鍵（シークレット TAGPR_APP_PRIVATE_KEY）は
+# Environment「tagpr」に置き、main からだけ使えるようにしてある（PR のブランチの workflow からは読めない）。
 on:
   push:
     branches: [main]
@@ -20,6 +21,7 @@ jobs:
   tagpr:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    environment: tagpr
     steps:
       - id: app-token
         uses: actions/create-github-app-token@v3.3.0

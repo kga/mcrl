@@ -4,6 +4,8 @@ GitHub と Claude Code 側で、コードの外にある設定の一覧。workfl
 
 ## GitHub App（tagpr 用）
 
+作成画面の Identifying and authorizing users（Callback URL・OAuth・Device Flow）と Post installation（Setup URL）は使わないので空のまま。
+
 tagpr が `GITHUB_TOKEN` でリリース PR やタグを作ると、その PR で CI が動かず（必須チェックを満たせない）、タグで `release.yml` も起動しない。そのため tagpr には GitHub App のトークンを使う。
 
 1. GitHub App を作る（Settings → Developer settings → GitHub Apps → New GitHub App）
@@ -12,9 +14,18 @@ tagpr が `GITHUB_TOKEN` でリリース PR やタグを作ると、その PR �
    - Where can this GitHub App be installed: Only on this account
 2. 秘密鍵（private key）を生成してダウンロードする
 3. App を `kga/mcrl` だけにインストールする
-4. `kga/mcrl` の Settings → Secrets and variables → Actions に登録する
-   - Variables: `TAGPR_APP_CLIENT_ID` = App の Client ID
-   - Secrets: `TAGPR_APP_PRIVATE_KEY` = 秘密鍵（.pem の中身）
+4. Environment `tagpr` を作る（Settings → Environments → New environment）
+   - Deployment branches and tags: **Selected branches and tags** → `main` だけ
+   - Required reviewers: なし（付けると main への push のたびに承認待ちになる）
+   - リポジトリの secret ではなく Environment に置くのは、同じリポジトリのブランチから作った PR の workflow にはリポジトリの secret が渡り、ブランチ上で workflow を書き換えれば鍵を読めてしまうため。Environment を `main` に限れば、main で動くジョブからしか読めない
+5. Environment `tagpr` に登録する（鍵がクリップボードを通らないよう `gh` で入れる）
+
+   ```sh
+   gh secret set TAGPR_APP_PRIVATE_KEY --env tagpr --repo kga/mcrl < path/to/private-key.pem
+   gh variable set TAGPR_APP_CLIENT_ID --env tagpr --repo kga/mcrl --body '<Client ID>'
+   ```
+
+   登録したら .pem は消してよい（App のページで作り直せる）
 
 ## ブランチのルールセット（main）
 
