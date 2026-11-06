@@ -90,10 +90,11 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # immutable release の attestation は公開直後に作られるので、少し待って確かめる。
-          # private リポジトリで作られない場合もあるので、確かめられなくても失敗にはしない
+          # immutable release の attestation は公開直後に作られるので、少し待ちながら確かめる。
+          # private リポジトリでも作られることを v0.1.1 で確認済み（2026-11-07）
           for i in 1 2 3 4 5 6; do
             if gh release verify "$TAG"; then exit 0; fi
             sleep 10
           done
-          echo "::warning::could not verify the release attestation of $TAG yet"
+          echo "::error::could not verify the release attestation of $TAG"
+          exit 1
