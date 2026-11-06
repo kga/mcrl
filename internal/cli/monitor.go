@@ -16,7 +16,7 @@ func newMonitorCmd(f *cmdutil.Factory) *cobra.Command {
 	return newGroup("monitor", "Manage monitors", []string{"monitors"},
 		newMonitorListCmd(f),
 		getCmd(f, mackerel.KindMonitor, "monitor", "  mcrl monitor get 'cpu high'\n  mcrl monitor get 2cSZzK3XfmG --jq '{name, isMute}'"),
-		newMonitorCreateCmd(f), newMonitorUpdateCmd(f), newMonitorDeleteCmd(f),
+		newMonitorCreateCmd(f), newMonitorUpdateCmd(f), newEditCmd(f, monitorEditable, "monitor"), newMonitorDeleteCmd(f),
 		newMonitorMuteCmd(f, true), newMonitorMuteCmd(f, false), newMonitorTemplateCmd(f))
 }
 

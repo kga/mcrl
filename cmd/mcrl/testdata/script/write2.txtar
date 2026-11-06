@@ -1,0 +1,87 @@
+env MACKEREL_APIKEY=good-key
+
+# edit: エディタで書き換えた内容を、差分を見せてから送る（id は隠して送らない）
+env EDITOR=fakeeditor
+env FAKE_EDIT_FROM='name: CPU high'
+env FAKE_EDIT_TO='name: CPU very high'
+exec mcrl monitor edit 'CPU high' --yes
+stderr '^- name: CPU high$'
+stderr '^\+ name: CPU very high$'
+grep 'BODY \{"name":"CPU very high","type":"host"\}' $WORK/requests.log
+# 端末でなく --yes もなければ送らない
+! exec mcrl monitor edit 'CPU high'
+stderr 'pass --yes'
+# 変更なしや空のファイルは取り消し
+env FAKE_EDIT_FROM=nothing-to-replace
+exec mcrl monitor edit 'CPU high'
+stderr 'edit cancelled'
+env FAKE_EDIT_EMPTY=1
+exec mcrl monitor edit 'CPU high'
+stderr 'edit cancelled'
+env FAKE_EDIT_EMPTY=
+# 壊れた YAML は端末でなければ使い方の誤りで終わる
+env FAKE_EDIT_FROM='name: CPU high'
+env FAKE_EDIT_TO='name: [broken'
+! exec mcrl monitor edit 'CPU high' --yes
+grep '^2$' $WORK/exitcode
+stderr 'invalid YAML'
+
+# dashboard edit は配置を検証し、読み取り専用の項目を隠す
+env FAKE_EDIT_FROM='widgets: []'
+env FAKE_EDIT_TO='widgets: [{type: markdown, title: m, markdown: hi, layout: {x: 20, y: 0, width: 8, height: 2}}]'
+! exec mcrl dashboard edit overview --yes
+stderr 'exceeds the 24 columns'
+env FAKE_EDIT_TO='widgets: [{type: markdown, title: m, markdown: hi, layout: {x: 0, y: 0, width: 8, height: 2}}]'
+exec mcrl dashboard edit overview --yes
+! grep 'BODY .*createdAt' $WORK/requests.log
+grep 'PUT /api/v0/dashboards/db000000001' $WORK/requests.log
+
+# 通知チャンネル: API で作れるのは email / slack / webhook だけ
+exec mcrl channel create --type slack --name dev --url https://hooks.slack.com/y --mention critical=@here --event alert --graph-image
+grep 'BODY \{"enabledGraphImage":true,"events":\["alert"\],"mentions":\{"critical":"@here"\},"name":"dev","type":"slack","url":"https://hooks.slack.com/y"\}' $WORK/requests.log
+! exec mcrl channel create --type twilio --name x
+stderr 'only email, slack and webhook'
+! exec mcrl channel create --type slack --name x
+stderr '--url is required'
+exec mcrl channel update ops --event alert --event hostRetire
+grep 'BODY \{"enabledGraphImage":false,"events":\["alert","hostRetire"\],"mentions":\{\},"name":"ops","type":"slack","url":"https://hooks.slack.com/x"\}' $WORK/requests.log
+! exec mcrl channel update phone --name y
+stderr 'only email, slack and webhook'
+
+# 通知グループ: チャンネルと監視は名前で指定できる
+exec mcrl ng create --name oncall --level critical --channel ops --monitor-only 'CPU high' --service web
+grep 'BODY \{"childChannelIds":\["ch000000001"\],"childNotificationGroupIds":\[\],"monitors":\[\{"id":"mon0000cpu1","skipDefault":true\}\],"name":"oncall","notificationLevel":"critical","services":\[\{"name":"web"\}\]\}' $WORK/requests.log
+
+exec mcrl alert-group create --name web --service web --notification-interval 1h
+grep 'BODY \{"name":"web","notificationInterval":60,"serviceScopes":\["web"\]\}' $WORK/requests.log
+
+# メタデータ: 書いたら取り直して出す
+stdin inventory.yaml
+exec mcrl metadata set inventory --host web-1 -f -
+stdout '^\{"rack":"A1"\}$'
+grep 'BODY \{"rack":"A1"\}' $WORK/requests.log
+! exec mcrl metadata set mackerel-x --host web-1 -f inventory.yaml
+stderr 'reserved'
+! exec mcrl metadata get inventory
+grep '^2$' $WORK/exitcode
+
+# IP 制限は必ず確認する
+! exec mcrl org ip-restriction set --target api --cidr 203.0.113.0/24
+stderr 'pass --yes'
+exec mcrl org ip-restriction set --target api --cidr 203.0.113.0/24 --yes
+stdout '"cidrs":\["203.0.113.0/24"\]'
+! exec mcrl org ip-restriction set --target api --cidr 999.0.0.0/8 --yes
+stderr 'invalid --cidr'
+
+exec mcrl invitation create alice@example.com --authority collaborator
+stdout '"authority":"collaborator"'
+! exec mcrl invitation create bob@example.com --authority owner
+grep '^2$' $WORK/exitcode
+
+# downtime list --active は今有効なものだけ
+exec mcrl downtime list --active --jq '.[].name'
+stdout '^always$'
+! stdout backup
+
+-- inventory.yaml --
+rack: A1

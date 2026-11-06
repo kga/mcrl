@@ -97,7 +97,7 @@ Windows は `%APPDATA%\mcrl\config.toml`、`%LOCALAPPDATA%\mcrl\cache\`。
 
 - 名前 → ID の対応（ホスト・監視など）と組織名を、プロファイル単位で短時間（既定 5 分）キャッシュする
 - 用途は補完と `open` の高速化。**更新系コマンドの名前解決ではキャッシュを使わない**（古い対応で別のリソースを消す事故を防ぐ）
-- `mcrl config cache clear` で削除
+- `mcrl config clear-cache` で削除
 
 ## 権限の扱い
 

@@ -30,7 +30,9 @@
 
 2026-11-06 に前半（M2a）を実装: 確認プロンプト・`--dry-run`・取り直し・stdin の `-`・`-f`（JSON/YAML）の共通部分、`alert close/memo`、`host status/retire/role set|add|remove`、`service create/delete`、`role create/delete`、`monitor create/update/delete/mute/unmute/template`、`downtime create/update/delete`、`metric post`、`check report/run`、`annotation create/update/delete/wrap`。
 
-残り（M2b）: `edit`（`$EDITOR`・差分・検証）、channel・notification-group・alert-group・dashboard・metadata・user・invitation・aws・org ip-restriction の更新系、`downtime list --active`、補完結果のキャッシュ。
+2026-11-07 に後半（M2b）を実装: `edit`（monitor・downtime・channel・notification-group・alert-group・dashboard・aws。YAML で開き、差分を見せて確認してから送る）、channel・notification-group・alert-group・dashboard（配置の検証つき）・aws の create/update/delete、`aws external-id/excludable-metrics`、`metadata list/get/set/delete`、`user remove`、`invitation list/create/revoke`、`org ip-restriction get/set`、`downtime list --active`、補完結果のキャッシュ（5 分、`config clear-cache`）。
+
+M2 で見送ったもの: `host create/update/edit`（ホストは mackerel-agent が登録・更新するもので、`PUT /hosts/<id>` は meta などを丸ごと置き換えるため事故が起きやすい。必要になったら設計し直す）、`config get/set/list/edit`、`open`。
 
 当初の計画:
 

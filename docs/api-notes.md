@@ -124,6 +124,8 @@
 - `PUT /hosts/<id>/role-fullnames` の後のホストの `roles` は、サービスごとのロール名の配列（順序は追加順ではない）
 - `POST /downtimes` / `PUT /downtimes/<id>` は入力に `id` を足したものを返す。`recurrence.until` もそのまま返る
 - `PUT /graph-annotations/<id>` は全項目の再指定が必要（単体を取得する API がないため、mcrl でもマージできない）
+- `POST /notification-groups` は `childNotificationGroupIds` がないと `400 Invalid Parameter: obj.childNotificationGroupIds error.path.missing`（ドキュメントでは必須と書かれていない）。mcrl は作成時に `childNotificationGroupIds` と `childChannelIds` の空配列を補う
+- IP 制限がないときの `GET /settings/ip-restriction/{web,api}` は `{"cidrs": []}`
 - `check report` で WARNING、`check run` で CRITICAL を報告しても、3 分待ってもアラートは作られなかった（原因未確認）
 
 ## 列挙値

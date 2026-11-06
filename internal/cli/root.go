@@ -89,7 +89,7 @@ Use --jq to filter it. Errors go to stderr and are reflected in the exit code
 		newOrgCmd(f), newServiceCmd(f), newRoleCmd(f), newHostCmd(f), newMetricCmd(f),
 		newMonitorCmd(f), newCheckCmd(f), newAlertCmd(f), newDowntimeCmd(f), newAlertGroupCmd(f),
 		newChannelCmd(f), newNotificationGroupCmd(f), newDashboardCmd(f), newAnnotationCmd(f),
-		newUserCmd(f), newAWSCmd(f), newAPICmd(f),
+		newUserCmd(f), newInvitationCmd(f), newMetadataCmd(f), newAWSCmd(f), newAPICmd(f),
 	} {
 		c.GroupID = "core"
 		root.AddCommand(c)

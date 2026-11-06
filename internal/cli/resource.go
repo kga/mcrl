@@ -2,15 +2,20 @@ package cli
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/kga/mcrl/internal/cli/cmdutil"
+	"github.com/kga/mcrl/internal/config"
 	"github.com/kga/mcrl/internal/mackerel"
 	"github.com/kga/mcrl/internal/timeexpr"
 )
@@ -119,9 +124,23 @@ func completeHosts(f *cmdutil.Factory) cobra.CompletionFunc {
 	}
 }
 
-// completeFromList lists a resource and returns "name\tid" completions.
-// Errors yield no completions: completion must never print errors.
+// completionTTL is how long completion candidates are cached. The cache is
+// used only for completion, never to resolve names for commands.
+const completionTTL = 5 * time.Minute
+
+// completeFromList lists a resource and returns "name\tid" completions,
+// cached per profile for completionTTL. Errors yield no completions:
+// completion must never print errors.
 func completeFromList(cmd *cobra.Command, f *cmdutil.Factory, path, key string, q url.Values, nameField, descField string) []cobra.Completion {
+	cachePath := completionCachePath(f, path+"?"+q.Encode()+"#"+nameField+","+descField)
+	if cachePath != "" {
+		if st, err := os.Stat(cachePath); err == nil && time.Since(st.ModTime()) < completionTTL {
+			var cached []cobra.Completion
+			if b, err := os.ReadFile(cachePath); err == nil && json.Unmarshal(b, &cached) == nil {
+				return cached
+			}
+		}
+	}
 	ctx, cancel := context.WithTimeout(cmd.Context(), 5*time.Second)
 	defer cancel()
 	c, err := apiClient(ctx, f)
@@ -141,7 +160,25 @@ func completeFromList(cmd *cobra.Command, f *cmdutil.Factory, path, key string, 
 		}
 		out = append(out, cobra.CompletionWithDesc(name, mackerel.StringField(it, descField)))
 	}
+	if cachePath != "" {
+		if b, err := json.Marshal(out); err == nil && os.MkdirAll(filepath.Dir(cachePath), 0o700) == nil {
+			_ = os.WriteFile(cachePath, b, 0o600)
+		}
+	}
 	return out
+}
+
+func completionCachePath(f *cmdutil.Factory, key string) string {
+	dir, err := config.CacheDir(f.Getenv)
+	if err != nil {
+		return ""
+	}
+	profile, _, err := f.ProfileName()
+	if err != nil {
+		return ""
+	}
+	sum := sha256.Sum256([]byte(profile + "\x00" + key))
+	return filepath.Join(dir, "completion", hex.EncodeToString(sum[:8])+".json")
 }
 
 // timeRange parses --since/--until style flags into epoch seconds.

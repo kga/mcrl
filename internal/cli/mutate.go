@@ -157,7 +157,11 @@ func readDocument(f *cmdutil.Factory, name string) (json.RawMessage, error) {
 	if err != nil {
 		return nil, &cmdutil.UsageError{Err: fmt.Errorf("%s is neither valid JSON nor YAML: %w", name, err)}
 	}
-	return bytes.TrimSpace(j), nil
+	var compact bytes.Buffer
+	if err := json.Compact(&compact, j); err != nil {
+		return nil, err
+	}
+	return compact.Bytes(), nil
 }
 
 // readObject reads a JSON/YAML object from a file into a map.

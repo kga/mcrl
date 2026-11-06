@@ -1,8 +1,10 @@
 package cli
 
 import (
+	"encoding/json"
 	"net/url"
 	"strconv"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -13,7 +15,7 @@ import (
 // Read-only commands that map directly to list / get endpoints.
 
 func newOrgCmd(f *cmdutil.Factory) *cobra.Command {
-	return newGroup("org", "Show the organization", nil, &cobra.Command{
+	return newGroup("org", "Show the organization and its settings", nil, newIPRestrictionCmd(f), &cobra.Command{
 		Use:     "get",
 		Short:   "Show the organization of the API key",
 		Long:    withAPI("Show the organization of the API key.", "Read", "GET /api/v0/org"),
@@ -73,52 +75,87 @@ role names.`, "Read", "GET /api/v0/services/<name>/roles"),
 }
 
 func newDowntimeCmd(f *cmdutil.Factory) *cobra.Command {
+	var active bool
+	dlist := listCmd(f, "List downtimes", "/downtimes", "downtimes",
+		"  mcrl downtime list\n  mcrl downtime list --active --jq '.[].name'")
+	dlist.Long = withAPI(`List downtimes.
+
+--active keeps only the downtimes in effect now. Recurring downtimes are
+evaluated in the local time zone.`, "Read", "GET /api/v0/downtimes")
+	dlist.RunE = func(cmd *cobra.Command, _ []string) error {
+		c, err := apiClient(cmd.Context(), f)
+		if err != nil {
+			return err
+		}
+		items, err := c.List(cmd.Context(), "/downtimes", "downtimes", nil)
+		if err != nil {
+			return err
+		}
+		if active {
+			now := time.Now()
+			kept := []json.RawMessage{}
+			for _, it := range items {
+				if downtimeActive(it, now) {
+					kept = append(kept, it)
+				}
+			}
+			items = kept
+		}
+		return printItems(f, items)
+	}
+	dlist.Flags().BoolVar(&active, "active", false, "only downtimes in effect now")
 	return newGroup("downtime", "Manage downtimes", []string{"downtimes"},
-		listCmd(f, "List downtimes", "/downtimes", "downtimes",
-			"  mcrl downtime list\n  mcrl downtime list --jq '.[] | {id, name, start}'"),
+		dlist,
 		getCmd(f, mackerel.KindDowntime, "downtime", "  mcrl downtime get weekly-maintenance\n  mcrl downtime get 3Ja1bAxcdef"),
-		newDowntimeCreateCmd(f), newDowntimeUpdateCmd(f), newDowntimeDeleteCmd(f))
+		newDowntimeCreateCmd(f), newDowntimeUpdateCmd(f), newEditCmd(f, downtimeEditable, "downtime"), newDowntimeDeleteCmd(f))
 }
 
 func newChannelCmd(f *cmdutil.Factory) *cobra.Command {
 	return newGroup("channel", "Manage notification channels", []string{"channels"},
 		listCmd(f, "List notification channels", "/channels", "channels",
 			"  mcrl channel list\n  mcrl channel list --jq '.[] | select(.type == \"slack\") | .name'"),
-		getCmd(f, mackerel.KindChannel, "channel", "  mcrl channel get ops-slack\n  mcrl channel get 2wvKpqFzgD9"))
+		getCmd(f, mackerel.KindChannel, "channel", "  mcrl channel get ops-slack\n  mcrl channel get 2wvKpqFzgD9"),
+		channelCRUD.createCmd(f), channelCRUD.updateCmd(f), newEditCmd(f, channelCRUD.editable, "channel"), channelCRUD.deleteCmd(f))
 }
 
 func newNotificationGroupCmd(f *cmdutil.Factory) *cobra.Command {
 	return newGroup("notification-group", "Manage notification groups", []string{"notification-groups", "ng"},
 		listCmd(f, "List notification groups", "/notification-groups", "notificationGroups",
 			"  mcrl notification-group list\n  mcrl ng list --jq '.[].name'"),
-		getCmd(f, mackerel.KindNotificationGroup, "notification-group", "  mcrl ng get Default\n  mcrl ng get 2wvKpqFzgD9"))
+		getCmd(f, mackerel.KindNotificationGroup, "notification-group", "  mcrl ng get Default\n  mcrl ng get 2wvKpqFzgD9"),
+		notificationGroupCRUD.createCmd(f), notificationGroupCRUD.updateCmd(f), newEditCmd(f, notificationGroupCRUD.editable, "notification-group"), notificationGroupCRUD.deleteCmd(f))
 }
 
 func newAlertGroupCmd(f *cmdutil.Factory) *cobra.Command {
 	return newGroup("alert-group", "Manage alert group settings", []string{"alert-groups"},
 		listCmd(f, "List alert group settings", "/alert-group-settings", "alertGroupSettings",
 			"  mcrl alert-group list\n  mcrl alert-group list --jq '.[].name'"),
-		getCmd(f, mackerel.KindAlertGroup, "alert-group", "  mcrl alert-group get web\n  mcrl alert-group get 3Ja1bAxcdef"))
+		getCmd(f, mackerel.KindAlertGroup, "alert-group", "  mcrl alert-group get web\n  mcrl alert-group get 3Ja1bAxcdef"),
+		alertGroupCRUD.createCmd(f), alertGroupCRUD.updateCmd(f), newEditCmd(f, alertGroupCRUD.editable, "alert-group"), alertGroupCRUD.deleteCmd(f))
 }
 
 func newDashboardCmd(f *cmdutil.Factory) *cobra.Command {
 	return newGroup("dashboard", "Manage dashboards", []string{"dashboards"},
 		listCmd(f, "List dashboards", "/dashboards", "dashboards",
 			"  mcrl dashboard list\n  mcrl dashboard list --jq '.[] | {id, title, urlPath}'"),
-		getCmd(f, mackerel.KindDashboard, "dashboard", "  mcrl dashboard get overview      # by URL path\n  mcrl dashboard get 'Web overview'  # by title"))
+		getCmd(f, mackerel.KindDashboard, "dashboard", "  mcrl dashboard get overview      # by URL path\n  mcrl dashboard get 'Web overview'  # by title"),
+		dashboardCRUD.createCmd(f), dashboardCRUD.updateCmd(f), newEditCmd(f, dashboardCRUD.editable, "dashboard"), dashboardCRUD.deleteCmd(f))
 }
 
 func newUserCmd(f *cmdutil.Factory) *cobra.Command {
 	return newGroup("user", "Manage organization members", []string{"users"},
 		listCmd(f, "List organization members", "/users", "users",
-			"  mcrl user list\n  mcrl user list --jq '.[] | select(.isMFAEnabled | not) | .email'"))
+			"  mcrl user list\n  mcrl user list --jq '.[] | select(.isMFAEnabled | not) | .email'"),
+		newUserRemoveCmd(f))
 }
 
 func newAWSCmd(f *cmdutil.Factory) *cobra.Command {
 	return newGroup("aws", "Manage AWS integrations", []string{"aws-integration", "aws-integrations"},
 		listCmd(f, "List AWS integrations", "/aws-integrations", "aws_integrations",
 			"  mcrl aws list\n  mcrl aws list --jq '.[] | {id, name, region}'"),
-		getCmd(f, mackerel.KindAWSIntegration, "aws-integration", "  mcrl aws get production\n  mcrl aws get 3Ja1bAxcdef"))
+		getCmd(f, mackerel.KindAWSIntegration, "aws-integration", "  mcrl aws get production\n  mcrl aws get 3Ja1bAxcdef"),
+		awsCRUD.createCmd(f), awsCRUD.updateCmd(f), newEditCmd(f, awsCRUD.editable, "aws-integration"), awsCRUD.deleteCmd(f),
+		newAWSExternalIDCmd(f), newAWSExcludableMetricsCmd(f))
 }
 
 func newCheckCmd(f *cmdutil.Factory) *cobra.Command {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -35,6 +36,25 @@ func newConfigCmd(f *cmdutil.Factory) *cobra.Command {
 		Use:   "config <command>",
 		Short: "Inspect the configuration",
 	}
+	cmd.AddCommand(&cobra.Command{
+		Use:   "clear-cache",
+		Short: "Delete the completion cache",
+		Args:  cmdutil.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			dir, err := config.CacheDir(f.Getenv)
+			if err != nil {
+				return err
+			}
+			if err := os.RemoveAll(filepath.Join(dir, "completion")); err != nil {
+				return err
+			}
+			p, err := f.Printer()
+			if err != nil {
+				return err
+			}
+			return p.Print(map[string]string{"removed": filepath.Join(dir, "completion")})
+		},
+	})
 	cmd.AddCommand(&cobra.Command{
 		Use:   "path",
 		Short: "Show the files and directories mcrl reads and writes",

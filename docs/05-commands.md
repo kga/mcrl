@@ -49,7 +49,7 @@ mcrl
 | `auth status` | 現在のプロファイル・組織名・キーの保存場所・ベース URL を表示 | `GET /org` |
 | `auth list` / `auth switch <p>` | プロファイル一覧・既定の切替 | |
 | `auth token` | API キーを stdout に出す（他ツールに渡す用。TTY では警告） | |
-| `config get/set/list/edit/path` | 設定ファイルの操作。`path` は読む設定ファイルの場所を全て表示 | |
+| `config path` / `config clear-cache` | 読み書きするファイルの場所を表示 / 補完のキャッシュを削除（`config get/set/list/edit` は未実装。設定ファイルを直接編集する） | |
 
 ## 組織
 
@@ -76,8 +76,6 @@ mcrl
 |---|---|---|
 | `host list` | `--service`、`--role`（複数可）、`--name`、`--status`（複数可、`all` で全て）、`--custom-identifier` | `GET /hosts` |
 | `host get <host>` | 詳細 | `GET /hosts/<id>`、`GET /hosts-by-custom-identifier/<cid>` |
-| `host create` | `--name`、`--display-name`、`--role`、`--memo`、`--custom-identifier`、または `-f` | `POST /hosts` |
-| `host update <host>` / `host edit <host>` | 更新 | `PUT /hosts/<id>` |
 | `host status <status> <host>...` | ステータス変更。31 台以上は 30 台ずつに分けて送る | `POST /hosts/<id>/status`、`POST /hosts/bulk-update-statuses` |
 | `host retire <host>...` | 退役。30 台ずつに分割。確認画面に対象ホスト名を列挙 | `POST /hosts/<id>/retire`、`POST /hosts/bulk-retire` |
 | `host role set <host> <svc:role>...` | ロールを置き換え | `PUT /hosts/<id>/role-fullnames` |

@@ -35,6 +35,21 @@ func TestMain(m *testing.M) {
 			}
 			os.Exit(code)
 		},
+		// edit のテスト用エディタ: FAKE_EDIT_FROM を FAKE_EDIT_TO に置き換えて保存する
+		"fakeeditor": func() {
+			path := os.Args[len(os.Args)-1]
+			b, err := os.ReadFile(path)
+			if err != nil {
+				os.Exit(1)
+			}
+			out := strings.ReplaceAll(string(b), os.Getenv("FAKE_EDIT_FROM"), os.Getenv("FAKE_EDIT_TO"))
+			if os.Getenv("FAKE_EDIT_EMPTY") != "" {
+				out = ""
+			}
+			if err := os.WriteFile(path, []byte(out), 0o600); err != nil {
+				os.Exit(1)
+			}
+		},
 	})
 }
 
@@ -221,7 +236,28 @@ func newFakeAPI(logPath string) http.Handler {
 		case route == "DELETE /api/v0/monitors/mon0000cpu1":
 			writeJSON(w, 200, `{"id":"mon0000cpu1","name":"CPU high","type":"host"}`)
 		case route == "GET /api/v0/downtimes":
-			writeJSON(w, 200, `{"downtimes":[{"id":"dt000000001","name":"backup","start":1762390800,"duration":60,"serviceScopes":["web"]}]}`)
+			writeJSON(w, 200, `{"downtimes":[{"id":"dt000000001","name":"backup","start":1762390800,"duration":60,"serviceScopes":["web"]},{"id":"dt000000002","name":"always","start":1762390800,"duration":10080,"recurrence":{"type":"daily","interval":1}}]}`)
+		case route == "GET /api/v0/channels":
+			writeJSON(w, 200, `{"channels":[{"id":"ch000000001","name":"ops","type":"slack","url":"https://hooks.slack.com/x","mentions":{},"enabledGraphImage":false,"events":["alert"],"suspendedAt":null},{"id":"ch000000002","name":"phone","type":"twilio","suspendedAt":null}]}`)
+		case route == "POST /api/v0/channels", route == "POST /api/v0/notification-groups", route == "POST /api/v0/alert-group-settings", route == "POST /api/v0/dashboards":
+			echo("new00000001")
+		case route == "PUT /api/v0/channels/ch000000001":
+			echo("ch000000001")
+		case route == "GET /api/v0/dashboards":
+			writeJSON(w, 200, `{"dashboards":[{"id":"db000000001","title":"Overview","urlPath":"overview","memo":"","widgets":[],"createdAt":1,"updatedAt":2}]}`)
+		case route == "GET /api/v0/dashboards/db000000001":
+			writeJSON(w, 200, `{"id":"db000000001","title":"Overview","urlPath":"overview","memo":"","widgets":[],"createdAt":1,"updatedAt":2}`)
+		case route == "PUT /api/v0/dashboards/db000000001":
+			echo("db000000001")
+		case route == "PUT /api/v0/hosts/5Vf7Be7guuy/metadata/inventory", route == "POST /api/v0/settings/ip-restriction/api",
+			route == "POST /api/v0/invitations/revoke":
+			success()
+		case route == "GET /api/v0/hosts/5Vf7Be7guuy/metadata/inventory":
+			writeJSON(w, 200, `{"rack":"A1"}`)
+		case route == "GET /api/v0/settings/ip-restriction/api":
+			writeJSON(w, 200, `{"cidrs":["203.0.113.0/24"]}`)
+		case route == "POST /api/v0/invitations":
+			writeJSON(w, 200, string(reqBody))
 		case route == "POST /api/v0/downtimes":
 			echo("dtNEW000001")
 		case route == "PUT /api/v0/downtimes/dt000000001":
