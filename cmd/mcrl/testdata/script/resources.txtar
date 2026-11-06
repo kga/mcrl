@@ -1,0 +1,69 @@
+env MACKEREL_APIKEY=good-key
+
+# 一覧は API のラップを剥がした配列
+exec mcrl host list --jq '.[].name'
+stdout -count=2 '(?m)^.+$'
+exec mcrl host list --status all --service web --role app --role db
+grep 'GET /api/v0/hosts\?role=app&role=db&service=web&status=working&status=standby&status=maintenance&status=poweroff' $WORK/requests.log
+! exec mcrl host list --role app
+stderr 'needs --service'
+! exec mcrl host list --status down
+grep '^2$' $WORK/exitcode
+
+# ホストは ID・名前のどちらでも指定でき、名前解決は全ステータスを対象にする
+exec mcrl host get web-1 --jq .id
+stdout '^5Vf7Be7guuy$'
+exec mcrl host get 5Vf7Be7guuy --jq .name
+stdout '^web-1$'
+! exec mcrl host get nope
+grep '^4$' $WORK/exitcode
+stderr 'host \\"nope\\" not found'
+! exec mcrl host get dup
+grep '^5$' $WORK/exitcode
+stderr 'dupaaaaaaa1, dupaaaaaaa2'
+
+# --expand は _expanded に足し、API のフィールドには触れない
+# （--jq を使うとキーが並べ替わるので jsonl で見る）
+exec mcrl host monitor-status web-1 --expand -o jsonl
+stdout '(?m)^\{"monitorId":"mon0000cpu1","status":"CRITICAL","_expanded":\{"monitor":\{"id":"mon0000cpu1","name":"CPU high","type":"host"\}\}\}$'
+
+# 監視は名前でも取れる。--type と --name は手元で絞る
+exec mcrl monitor get 'CPU high' --jq .id
+stdout '^mon0000cpu1$'
+exec mcrl monitor list --type host --type service --name LAT --jq '.[].id'
+stdout '^mon0000svc1$'
+! stdout mon0000cpu1
+
+# 単体 GET がない種類は一覧から探す
+exec mcrl ng get Default --jq .id
+stdout '^ng000000001$'
+
+# アラート: ページをまたいで手元で絞り、--limit で止める
+exec mcrl alert list --status critical --jq '[.[].id] | join(",")'
+stdout '^a1,a3$'
+exec mcrl alert list --limit 1 --jq '[.[].id] | join(",")'
+stdout '^a1$'
+grep 'GET /api/v0/alerts\?limit=1$' $WORK/requests.log
+exec mcrl alert list --host web-1 --jq '[.[].id] | join(",")'
+stdout '^a1$'
+exec mcrl alert list --monitor 'CPU high' --expand --jq '.[0]._expanded.host.name'
+stdout '^web-1$'
+exec mcrl alert list --all --limit 0 --jq length
+stdout '^3$'
+grep 'withClosed=true' $WORK/requests.log
+
+# メトリクス: 時刻は epoch 秒で送り、範囲の逆転は送る前に弾く
+exec mcrl metric get --host web-1 --name loadavg5 --since @1762390000 --until @1762391000 --jq 'map(.value) | add'
+stdout '^2$'
+grep 'GET /api/v0/hosts/5Vf7Be7guuy/metrics\?from=1762390000&name=loadavg5&to=1762391000' $WORK/requests.log
+! exec mcrl metric get --host web-1 --name loadavg5 --since now --until 1h
+grep '^2$' $WORK/exitcode
+! exec mcrl metric get --name loadavg5
+grep '^2$' $WORK/exitcode
+! exec mcrl metric get --host web-1 --service web --name x
+grep '^2$' $WORK/exitcode
+exec mcrl metric latest --host web-1 --name loadavg5 --jq '.["5Vf7Be7guuy"].loadavg5.value'
+stdout '^1.5$'
+
+exec mcrl annotation list --service web --jq '.[].title'
+stdout '^deploy$'

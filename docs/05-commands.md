@@ -66,7 +66,7 @@ mcrl
 | `service list` | 一覧 | `GET /services` |
 | `service create <name> [--memo]` | 作成 | `POST /services` |
 | `service delete <name>` | 削除。**ロール・サービスメトリクス・監視・アノテーションが連鎖削除される** ことを確認画面で明示 | `DELETE /services/<name>` |
-| `role list [--service s]` | 一覧。`--service` 省略時は全サービス分 | `GET /services/<s>/roles` |
+| `role list --service s` | 一覧（`--service` は必須。全サービスのロール名は `service list` に含まれる） | `GET /services/<s>/roles` |
 | `role create <svc>:<role> [--memo]` | 作成 | `POST /services/<s>/roles` |
 | `role delete <svc>:<role>` | 削除 | `DELETE /services/<s>/roles/<r>` |
 

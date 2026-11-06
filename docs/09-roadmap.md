@@ -15,7 +15,9 @@
 - `version`、`completion`、`doctor`
 - エラー表示と終了コード
 
-## M1: 参照系（障害対応で使える）
+## M1: 参照系（障害対応で使える）（2026-11-06 完了）
+
+次は M2 に回した: stdin からの `-`（複数 ID を受ける更新系と一緒に入れる）、`downtime list --active`、補完結果のキャッシュ。M1 では `check list/get`、`aws list/get`、各リソースの `get` も入れた。
 
 - `org get`、`service list`、`role list`
 - `host list/get/monitor-status`

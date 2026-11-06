@@ -10,6 +10,7 @@ import (
 
 	"github.com/kga/mcrl/internal/cli/cmdutil"
 	"github.com/kga/mcrl/internal/httpx"
+	"github.com/kga/mcrl/internal/mackerel"
 )
 
 // Exit codes. See docs/04-cli-ux.md.
@@ -46,6 +47,8 @@ func classify(err error) classified {
 		ae  *cmdutil.AuthError
 		api *httpx.APIError
 		ne  *httpx.NetworkError
+		nf  *mackerel.NotFoundError
+		amb *mackerel.AmbiguousError
 	)
 	switch {
 	case errors.As(err, &ee):
@@ -56,6 +59,11 @@ func classify(err error) classified {
 		c.exit, c.code = ExitUsage, "usage"
 	case errors.As(err, &ae):
 		c.exit, c.code = ExitAuth, "auth"
+	case errors.As(err, &nf):
+		c.exit, c.code = ExitNotFound, "not_found"
+	case errors.As(err, &amb):
+		c.exit, c.code = ExitInvalid, "ambiguous"
+		c.setHint("pass the ID, or force the interpretation with the id: or name: prefix")
 	case errors.As(err, &api):
 		c.status = api.StatusCode
 		switch {
@@ -90,7 +98,7 @@ func (c *classified) setHint(h string) {
 
 func isCobraUsageError(err error) bool {
 	msg := err.Error()
-	for _, p := range []string{"unknown command", "unknown flag", "unknown shorthand flag", "flag needs an argument", "invalid argument", "required flag"} {
+	for _, p := range []string{"unknown command", "unknown flag", "unknown shorthand flag", "flag needs an argument", "invalid argument", "required flag", "at least one of the flags", "if any flags in the group"} {
 		if strings.HasPrefix(msg, p) {
 			return true
 		}

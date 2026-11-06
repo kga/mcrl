@@ -106,6 +106,8 @@
 - 名前解決では「11 文字の英数字なら ID とみなし、それ以外は名前」とする。ホスト名がたまたま 11 文字の英数字の場合に備え、`name:` 接頭辞で強制できるようにする
 - `GET /hosts?name=` は **完全一致・大文字小文字を区別**（`mcrl-fake` や大文字では 0 件）。部分一致の検索が要る場合は CLI 側で一覧を取って絞る
 - mackerel-agent が登録したホストの `displayName` と `customIdentifier` は `null`、`roles` は `{}`
+- `GET /hosts-by-custom-identifier/<cid>` は該当なしでも 404 ではなく **200 で `{"host": null}`** を返す（実測）
+- `GET /monitors/<id>` は `{"monitor": {...}}` でラップされる（実測）
 
 ## 列挙値
 
