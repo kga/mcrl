@@ -50,6 +50,7 @@ GoReleaser で作る（[decisions.md](decisions.md) D15。リポジトリが pri
 3. リリース PR をマージすると、tagpr がタグを打ち、同じ workflow（`tagpr.yml`）から `cross-platform.yml`（macOS・Windows のテスト）と `release.yml`（GoReleaser）が呼ばれる
 4. GitHub の Releases で下書きを確認して公開する
 
+- リポジトリは **immutable releases** を有効にしている（2026-11-07）。公開した Release は、資産もタグも変更・削除できない。そのため GoReleaser は下書きを作ってすべての資産を付け、オーナーが確認してから公開する。workflow を再実行したときは同じタグの下書きを使い回し（`use_existing_draft`）、途中まで上げた資産は置き換える（`replace_existing_artifacts`）。公開後は `gh release verify <tag>` で GitHub の release attestation を確かめられる（v0.1.0 は有効化の前に公開したので対象外）
 - 変更履歴は GitHub が生成するリリースノート（マージされた PR が単位、分類は `.github/release.yml`）なので、main に直接 push した変更は載らない
 - `gh workflow run release.yml` でスナップショット（公開しない）を作れる。人が手で `v*` タグを push した場合も `release.yml` と `cross-platform.yml` が動く
 - リポジトリ設定 Settings → Actions → General → Workflow permissions の「Allow GitHub Actions to create and approve pull requests」が必要
