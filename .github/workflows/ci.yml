@@ -1,21 +1,14 @@
 name: CI
 
-# Linux だけで回す。macOS・Windows は cross-platform.yml（タグと手動実行のみ）で確かめる。
-# ドキュメントや開発用ツールだけの変更では回さない（private リポジトリの Actions は有料枠を消費するため）
+# PR と main への push で回す。main の必須チェックは最後の ci-ok だけにしてある。
+# - Linux だけで回す。macOS・Windows はリリースのとき（release.yml）と手動実行で確かめる
+#   （private リポジトリの Actions は有料枠を消費し、macOS は Linux の約 10 倍の料金のため）
+# - ドキュメント・dev/・LICENSE だけの PR では重いジョブを飛ばす。paths-ignore を使わないのは、
+#   workflow ごと起動しないと必須チェックが報告されず、PR をマージできなくなるため
 on:
   push:
     branches: [main]
-    paths-ignore:
-      - "**.md"
-      - "docs/**"
-      - "dev/**"
-      - "LICENSE"
   pull_request:
-    paths-ignore:
-      - "**.md"
-      - "docs/**"
-      - "dev/**"
-      - "LICENSE"
 
 permissions:
   contents: read
@@ -25,7 +18,37 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: filter
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          # main への push はいつでも全部回す
+          if [ "${GITHUB_EVENT_NAME}" != "pull_request" ]; then
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          changed=$(git diff --name-only "$BASE...$HEAD")
+          printf 'changed files:\n%s\n' "$changed"
+          if printf '%s\n' "$changed" | grep -qvE '^(docs/|dev/|LICENSE$)|\.md$'; then
+            echo "code=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "code=false" >> "$GITHUB_OUTPUT"
+          fi
+
   test:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -43,6 +66,8 @@ jobs:
       - run: go test -race ./...
 
   lint:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -57,6 +82,8 @@ jobs:
           version: v2.15.0
 
   vulncheck:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -70,6 +97,8 @@ jobs:
 
   # actions.lock が全 workflow の依存を正しく固定しているかを確かめる
   actions-lock:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -82,3 +111,21 @@ jobs:
         run: |
           gh extension install github/gh-actions-lock --pin v0.4.0
           gh actions-lock --verify
+
+  # main の必須チェック。上のジョブが成功または（変更なしで）スキップなら成功する
+  ci-ok:
+    needs: [changes, test, lint, vulncheck, actions-lock]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "results: $RESULTS"
+          for r in $RESULTS; do
+            case "$r" in
+              success|skipped) ;;
+              *) echo "::error::a required job ended with $r"; exit 1 ;;
+            esac
+          done

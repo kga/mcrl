@@ -1,10 +1,8 @@
 name: Cross-platform
 
 # macOS・Windows のランナーは Linux より高い（macOS は約 10 倍）ため、
-# リリースのとき（tagpr.yml から呼ばれる）と手動実行のときだけ回す
+# リリースのとき（release.yml から呼ばれる）と手動実行のときだけ回す
 on:
-  push:
-    tags: ["v*"] # 人が手で打ったタグ用。tagpr のタグでは tagpr.yml から呼ばれる
   workflow_dispatch:
   workflow_call:
     inputs:
