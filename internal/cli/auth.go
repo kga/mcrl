@@ -33,6 +33,7 @@ key is looked up in this order:
 	}
 	cmd.AddCommand(newAuthLoginCmd(f), newAuthLogoutCmd(f), newAuthStatusCmd(f),
 		newAuthListCmd(f), newAuthSwitchCmd(f), newAuthTokenCmd(f))
+	groupArgs(cmd)
 	return cmd
 }
 

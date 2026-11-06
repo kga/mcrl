@@ -75,6 +75,7 @@ func newConfigCmd(f *cmdutil.Factory) *cobra.Command {
 			return p.Print(map[string]string{"config": cfg, "cache": cache})
 		},
 	})
+	groupArgs(cmd)
 	return cmd
 }
 

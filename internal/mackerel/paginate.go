@@ -4,8 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"iter"
+	"net/http"
 	"net/url"
 	"strconv"
+
+	"github.com/kga/mcrl/internal/httpx"
 )
 
 // PageSize is the maximum "limit" of nextId-paginated endpoints.
@@ -52,6 +55,83 @@ func (c *Client) NextIDPages(ctx context.Context, path, key string, query url.Va
 				return
 			}
 			q.Set("nextId", next)
+		}
+	}
+}
+
+// PostJSON sends a POST with a JSON body (Logs and Traces search with POST).
+func (c *Client) PostJSON(ctx context.Context, path string, body any) ([]byte, error) {
+	b, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := c.HTTP.Do(ctx, &httpx.Request{Method: http.MethodPost, Path: path, Body: b, Idempotent: true})
+	if err != nil {
+		return nil, err
+	}
+	return resp.Body, nil
+}
+
+// CursorPages iterates POST /logs results with pageCursor / pagination.endCursor.
+// body is modified to add pageCursor.
+func (c *Client) CursorPages(ctx context.Context, path string, body map[string]any) iter.Seq2[json.RawMessage, error] {
+	return func(yield func(json.RawMessage, error) bool) {
+		for {
+			b, err := c.PostJSON(ctx, path, body)
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+			var page struct {
+				Results    []json.RawMessage `json:"results"`
+				Pagination struct {
+					HasNextPage bool    `json:"hasNextPage"`
+					EndCursor   *string `json:"endCursor"`
+				} `json:"pagination"`
+			}
+			if err := json.Unmarshal(b, &page); err != nil {
+				yield(nil, err)
+				return
+			}
+			for _, r := range page.Results {
+				if !yield(r, nil) {
+					return
+				}
+			}
+			if !page.Pagination.HasNextPage || page.Pagination.EndCursor == nil || len(page.Results) == 0 {
+				return
+			}
+			body["pageCursor"] = map[string]string{"direction": "NEXT", "cursor": *page.Pagination.EndCursor}
+		}
+	}
+}
+
+// NumberedPages iterates page/perPage endpoints that answer with
+// {"results": [...], "hasNextPage": bool}. fetch gets the 1-based page.
+func NumberedPages(fetch func(page int) ([]byte, error)) iter.Seq2[json.RawMessage, error] {
+	return func(yield func(json.RawMessage, error) bool) {
+		for page := 1; ; page++ {
+			b, err := fetch(page)
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+			var p struct {
+				Results     []json.RawMessage `json:"results"`
+				HasNextPage bool              `json:"hasNextPage"`
+			}
+			if err := json.Unmarshal(b, &p); err != nil {
+				yield(nil, err)
+				return
+			}
+			for _, r := range p.Results {
+				if !yield(r, nil) {
+					return
+				}
+			}
+			if !p.HasNextPage || len(p.Results) == 0 {
+				return
+			}
 		}
 	}
 }

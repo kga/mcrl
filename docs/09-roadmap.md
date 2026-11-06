@@ -44,7 +44,11 @@ M2 で見送ったもの: `config get/set/list/edit`、`open`。
 - 残りのリソースの CRUD（channel、notification-group、alert-group、dashboard、metadata、service、role、user、invitation、aws、org ip-restriction）
 - `edit` の基盤（`$EDITOR`、差分、検証）、`--dry-run`、確認プロンプト
 
-## M3: オブザーバビリティ
+## M3: オブザーバビリティ（2026-11-07 完了）
+
+`log search`（カーソルでページング、`-o jsonl` で逐次出力、`--where` で JSON 本文の条件、`--saved` で保存された検索を使う）、`log tail`（ポーリングで追従）、`log saved`、`trace list/get`（範囲は 30 分まで）、`apm http/db`。`dev/otlp/` に OTLP でテストデータを送るスクリプトを置いた。
+
+当初の計画:
 
 - `log search/tail/saved`
 - `trace list/get`

@@ -119,6 +119,15 @@
 - `GET /hosts`（全ステータス指定でも）と `GET /hosts?name=` には出てこない。そのため名前では解決できず、`id:` で指定する必要がある
 - 退役したホストに付いていたチェック監視（`GET /monitoring/checks`）は残る。チェック監視を消す API はない
 
+## ログ・トレース・APM（実測 2026-11-07）
+
+- テストデータは OTLP/HTTP の **JSON**（`Content-Type: application/json`）で curl から直接送れた。トレースは `https://otlp-vaxila.mackerelio.com/v1/traces`、ログは `https://otlp.mackerelio.com:4318/v1/logs`、ヘッダ `Mackerel-Api-Key`（Write 権限）。手順は `dev/otlp/`
+- 送ってから約 1 秒で `POST /logs`・`POST /traces`・`GET /traces/<id>`・`GET /apm/*` に現れた
+- リソース属性 `service.name` が検索の `serviceName` になる。Mackerel のサービス（`GET /services`）は作られない
+- ログの `body` は文字列のまま返る。本文が JSON なら `bodyAttributes` の条件（`keyPath`）が効く
+- トレース一覧の `title` はルートスパンの種類とメソッドで `[HTTP]GET` のようになる（ルートは含まれない）
+- `GET /traces/<id>` の span の `kind` と `status.code` は小文字の文字列（`server`、`client`、`error`、`unset`）
+
 ## API だけで登録したホスト（実測 2026-11-07）
 
 - `POST /hosts` は `meta: {}` で登録でき、`{"id": "..."}` を返す。登録直後の `status` は `working`、`size` は `standard`
@@ -153,6 +162,7 @@
 |---|---|
 | `POST /logs` | `from`〜`to` 最大 30 日。`to` は排他 |
 | `GET /apm/*` | 最大 30 分 |
+| `POST /traces` | **最大 30 分**（ドキュメントには記載なし。超えると `400 range in between the from and to parameters must be less than or equal to 30 minutes`、2026-11-07 実測） |
 | メトリクス取得 | 未記載。400 日の範囲でも 200 が返った（実測） |
 | Traces | 未記載 |
 

@@ -266,6 +266,35 @@ func newFakeAPI(logPath string) http.Handler {
 			echo("anno1")
 		case route == "POST /api/v0/hosts", route == "PUT /api/v0/hosts/5Vf7Be7guuy":
 			writeJSON(w, 200, `{"id":"5Vf7Be7guuy"}`)
+		case route == "POST /api/v0/logs":
+			var b struct {
+				PageCursor  *struct{ Cursor string } `json:"pageCursor"`
+				ServiceName string                   `json:"serviceName"`
+			}
+			_ = json.Unmarshal(reqBody, &b)
+			if b.ServiceName == "" {
+				writeJSON(w, 400, `{"error":{"message":"Invalid Parameter: obj.serviceName error.path.missing."}}`)
+				return
+			}
+			if b.PageCursor == nil {
+				writeJSON(w, 200, `{"results":[{"cursor":"c1","timestamp":"2026-11-07T00:00:02Z","severity":"ERROR","body":"boom"},{"cursor":"c2","timestamp":"2026-11-07T00:00:01Z","severity":"INFO","body":"ok"}],"pagination":{"hasNextPage":true,"hasPreviousPage":false,"startCursor":"c1","endCursor":"c2"}}`)
+			} else {
+				writeJSON(w, 200, `{"results":[{"cursor":"c3","timestamp":"2026-11-07T00:00:00Z","severity":"INFO","body":"start"}],"pagination":{"hasNextPage":false,"hasPreviousPage":true,"startCursor":"c3","endCursor":"c3"}}`)
+			}
+		case route == "GET /api/v0/saved-log-searches":
+			writeJSON(w, 200, `{"results":[{"id":"s1","name":"errors","description":null,"definition":{"serviceName":"web","serviceNamespace":null,"keywords":[],"severities":["ERROR"],"traceId":null,"bodyAttributes":[]},"createdAt":1,"updatedAt":2}]}`)
+		case route == "POST /api/v0/traces":
+			var b struct{ Page int }
+			_ = json.Unmarshal(reqBody, &b)
+			if b.Page == 1 {
+				writeJSON(w, 200, `{"results":[{"traceId":"t1","title":"GET /a"}],"hasNextPage":true}`)
+			} else {
+				writeJSON(w, 200, `{"results":[{"traceId":"t2","title":"GET /b"}],"hasNextPage":false}`)
+			}
+		case route == "GET /api/v0/traces/t1":
+			writeJSON(w, 200, `{"spans":[{"traceId":"t1","spanId":"s1","name":"GET /a"}]}`)
+		case route == "GET /api/v0/apm/http-server-stats":
+			writeJSON(w, 200, `{"results":[{"method":"GET","route":"/a","requestCount":3}],"hasNextPage":false}`)
 		case route == "POST /api/v0/services":
 			writeJSON(w, 200, string(reqBody))
 		case strings.HasPrefix(route, "GET /api/v0/hosts/"):

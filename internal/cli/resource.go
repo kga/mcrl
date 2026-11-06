@@ -17,6 +17,7 @@ import (
 	"github.com/kga/mcrl/internal/cli/cmdutil"
 	"github.com/kga/mcrl/internal/config"
 	"github.com/kga/mcrl/internal/mackerel"
+	"github.com/kga/mcrl/internal/output"
 	"github.com/kga/mcrl/internal/timeexpr"
 )
 
@@ -29,10 +30,19 @@ func apiClient(ctx context.Context, f *cmdutil.Factory) (*mackerel.Client, error
 	return mackerel.New(h), nil
 }
 
-// printItems prints a list of raw JSON values as one array.
+// printItems prints a list of raw JSON values as one array. With -o jsonl
+// each item is a line, and --jq runs on each item rather than on the array.
 func printItems(f *cmdutil.Factory, items []json.RawMessage) error {
 	if items == nil {
 		items = []json.RawMessage{}
+	}
+	if p, err := f.Printer(); err == nil && p.Format == output.FormatJSONL {
+		for _, it := range items {
+			if err := p.PrintRaw(it); err != nil {
+				return err
+			}
+		}
+		return nil
 	}
 	b, err := json.Marshal(items)
 	if err != nil {
@@ -202,5 +212,18 @@ func timeRange(since, until string) (int64, int64, error) {
 func newGroup(use, short string, aliases []string, subs ...*cobra.Command) *cobra.Command {
 	cmd := &cobra.Command{Use: use, Short: short, Aliases: aliases}
 	cmd.AddCommand(subs...)
+	groupArgs(cmd)
 	return cmd
+}
+
+// groupArgs makes a command that only has subcommands print its help when
+// called alone and fail with a usage error for an unknown subcommand.
+func groupArgs(cmd *cobra.Command) {
+	cmd.Args = cobra.ArbitraryArgs
+	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		if len(args) > 0 {
+			return cmdutil.Usagef("unknown command %q for %q", args[0], cmd.CommandPath())
+		}
+		return cmd.Help()
+	}
 }

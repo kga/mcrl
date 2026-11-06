@@ -1,0 +1,46 @@
+env MACKEREL_APIKEY=good-key
+
+# ログ: カーソルをたどってページをつなぐ。条件は API の形式にして送る
+exec mcrl log search --service web --severity warn+ --where 'res.status>=500' --keyword boom --limit 0 --jq '[.[].cursor] | join(",")'
+stdout '^c1,c2,c3$'
+grep '"bodyAttributes":\[\{"keyPath":\["res","status"\],"operator":"GTE","type":"int","value":"500"\}\]' $WORK/requests.log
+grep '"severities":\["ERROR","FATAL","WARN"\]' $WORK/requests.log
+grep '"pageCursor":\{"cursor":"c2","direction":"NEXT"\}' $WORK/requests.log
+exec mcrl log search --service web --limit 1 -o jsonl
+stdout -count=1 '"cursor"'
+! exec mcrl log search --since 1h
+stderr '--service is required'
+! exec mcrl log search --service web --since 31d
+stderr 'longer than 30 days'
+! exec mcrl log search --service web --where 'name>abc'
+grep '^2$' $WORK/exitcode
+
+# 保存された検索の条件を使い、フラグで上書きする
+exec mcrl log search --saved errors --limit 1 --dry-run
+stdout '"serviceName":"web"'
+stdout '"severities":\["ERROR"\]'
+! stdout keywords
+! exec mcrl log saved-nope
+exec mcrl log saved --jq '.[].name'
+stdout '^errors$'
+
+# トレース: ページ番号をたどる。範囲は 30 分まで
+exec mcrl trace list --service web --status error --min-latency 500ms --attr 'http.route=/a' --limit 0 --jq '[.[].traceId] | join(",")'
+stdout '^t1,t2$'
+grep '"minLatencyMillis":500' $WORK/requests.log
+grep '"attributes":\[\{"key":"http.route","operator":"EQ","type":"string","value":"/a"\}\]' $WORK/requests.log
+! exec mcrl trace list --service web --since 1h
+stderr '30 minutes'
+exec mcrl trace get t1 --jq '.[0].name'
+stdout '^GET /a$'
+! exec mcrl trace get nope
+grep '^4$' $WORK/exitcode
+
+# APM
+exec mcrl apm http --service web --sort requests --jq '.[0].route'
+stdout '^/a$'
+grep 'GET /api/v0/apm/http-server-stats\?.*orderColumn=REQUEST_COUNT' $WORK/requests.log
+! exec mcrl apm db --service web --sort requests
+stderr '--sort must be one of'
+! exec mcrl log tail --service web --interval 100ms
+stderr '1s or more'

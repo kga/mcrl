@@ -217,9 +217,9 @@ mcrl annotation wrap --service web --title "deploy $(git rev-parse --short HEAD)
 | `log tail --service s ...` | 新しいログを JSONL で出し続ける（1 req/s を守りつつポーリング） | `POST /logs` |
 | `log saved` | 保存された検索の一覧 | `GET /saved-log-searches` |
 | `trace list --service s` | `--since`、`--env`、`--span-name`、`--status error`、`--min-latency 500ms`、`--attr`、`--sort latency` | `POST /traces` |
-| `trace get <traceId>` | span の一覧 | `GET /traces/<id>` |
-| `apm http --service s` | HTTP サーバー統計（既定 直近 30 分、`--sort p95`） | `GET /apm/http-server-stats` |
-| `apm db --service s` | DB クエリ統計 | `GET /apm/db-query-stats` |
+| `trace get <traceId>` | span の一覧（API の形式のまま） | `GET /traces/<id>` |
+| `apm http --service s` | HTTP サーバー統計（既定 直近 30 分、`--sort p95|sum|average|error-rate|requests`） | `GET /apm/http-server-stats` |
+| `apm db --service s` | DB クエリ統計（`--sort p95|sum|average|executions`、`--query` で部分一致） | `GET /apm/db-query-stats` |
 
 - 30 日を超える期間を指定した場合は API に送る前にエラー。APM の 30 分上限も同様
 
