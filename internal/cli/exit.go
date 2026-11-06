@@ -138,8 +138,9 @@ func PrintError(io *cmdutil.IOStreams, err error) {
 		Status  int    `json:"status,omitempty"`
 		Hint    string `json:"hint,omitempty"`
 	}
-	b, _ := json.Marshal(struct {
+	enc := json.NewEncoder(io.ErrOut)
+	enc.SetEscapeHTML(false) // "<service>" などを \u003c にしない
+	_ = enc.Encode(struct {
 		Error payload `json:"error"`
 	}{payload{Code: c.code, Message: msg, Status: c.status, Hint: c.hint}})
-	fmt.Fprintf(io.ErrOut, "%s\n", b)
 }

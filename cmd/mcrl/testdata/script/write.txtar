@@ -1,0 +1,147 @@
+env MACKEREL_APIKEY=good-key
+
+# 破壊的な操作は、端末でなければ --yes がないと実行しない（終了コード 2）
+! exec mcrl monitor delete 'CPU high'
+grep '^2$' $WORK/exitcode
+stderr 'pass --yes'
+! grep 'DELETE /api/v0/monitors' $WORK/requests.log
+exec mcrl monitor delete 'CPU high' --yes
+stdout '"name":"CPU high"'
+grep 'DELETE /api/v0/monitors/mon0000cpu1' $WORK/requests.log
+
+# --dry-run は送らずにリクエストを出す（確認も要らない）
+exec mcrl host retire web-1 --dry-run
+stdout '"method":"POST"'
+stdout '/api/v0/hosts/5Vf7Be7guuy/retire'
+! grep 'POST /api/v0/hosts/5Vf7Be7guuy/retire' $WORK/requests.log
+
+# 退役は確認のうえ実行し、取り直したホストを配列で出す
+exec mcrl host retire web-1 --yes --jq '.[].name'
+stdout '^web-1$'
+grep 'POST /api/v0/hosts/5Vf7Be7guuy/retire' $WORK/requests.log
+exec mcrl host retire web-1 --yes --no-refetch
+stdout '^\{"success":true\}$'
+
+# 31 台は 30 台ずつの bulk API に分けて送る。"-" で stdin から読む
+stdin bulk31.txt
+exec mcrl host status maintenance - --no-refetch
+grep -count=2 'POST /api/v0/hosts/bulk-update-statuses' $WORK/requests.log
+! exec mcrl host status sleeping web-1
+grep '^2$' $WORK/exitcode
+
+# ロールの追加は今のロールに足して置き換える
+exec mcrl host role add web-1 web:batch --no-refetch
+grep 'BODY \{"roleFullnames":\["web:app","web:batch"\]\}' $WORK/requests.log
+exec mcrl host role remove web-1 web:app --no-refetch
+grep 'BODY \{"roleFullnames":\[\]\}' $WORK/requests.log
+! exec mcrl host role set web-1 app
+stderr 'want <service>:<role>'
+
+# アラートを stdin の ID で閉じる
+stdin alert-ids.txt
+exec mcrl alert close - --reason done --jq '.[].closedAt'
+stdout 1762390900
+exec mcrl alert memo a1 noted
+stdout '"memo":"noted"'
+
+# 監視の更新は今の設定に -f の内容を重ねて全体を送る（id は送らない）
+stdin patch.yaml
+exec mcrl monitor update 'CPU high' -f -
+grep 'BODY \{"critical":95,"name":"CPU high","type":"host","warning":85\}' $WORK/requests.log
+stdin bad-type.yaml
+! exec mcrl monitor update 'CPU high' -f -
+stderr 'cannot be changed'
+
+# ミュートは isMute だけ変える
+exec mcrl monitor mute 'CPU high' --jq '.[0].isMute'
+stdout '^true$'
+grep 'BODY \{"isMute":true,"name":"CPU high","type":"host"\}' $WORK/requests.log
+
+exec mcrl monitor create -f monitor.json --jq .id
+stdout monNEW00001
+exec mcrl monitor template host
+stdout '^type: host'
+
+# ダウンタイム: 期間は分、曜日は API の表記にする
+exec mcrl downtime create --name nightly --start @1762390800 --duration 1h30m --recurrence weekly:mon,thu --until @1767139200 --service web
+grep 'BODY \{"duration":90,"name":"nightly","recurrence":\{"interval":1,"type":"weekly","until":1767139200,"weekdays":\["Monday","Thursday"\]\},"serviceScopes":\["web"\],"start":1762390800\}' $WORK/requests.log
+! exec mcrl downtime create --name x --duration 30s
+stderr 'whole number of minutes'
+exec mcrl downtime update backup --duration 2h
+grep 'BODY \{"duration":120,"name":"backup","serviceScopes":\["web"\],"start":1762390800\}' $WORK/requests.log
+
+# メトリクス: 引数と、stdin のプラグイン形式
+exec mcrl metric post --host web-1 custom.a=1.5@1762390800
+grep 'BODY \[\{"hostId":"5Vf7Be7guuy","name":"custom.a","time":1762390800,"value":1.5\}\]' $WORK/requests.log
+stderr 'older than 24 hours'
+stdin plugin.txt
+exec mcrl metric post --service web -
+grep 'BODY \[\{"name":"custom.b","time":1762390800,"value":2\},\{"name":"custom.c","time":1762390860,"value":3\}\]' $WORK/requests.log
+
+# check run は子の終了コードを状態にして報告し、その終了コードで終わる
+exec mcrl check run --host web-1 --name selftest -- mcrl version --jq .os
+grep '"status":"OK"' $WORK/requests.log
+! exec mcrl check run --host web-1 --name selftest -- mcrl api
+grep '^2$' $WORK/exitcode
+grep '"status":"CRITICAL"' $WORK/requests.log
+! exec mcrl check report --host web-1 --name 'bad name' --status OK --message x
+stderr 'invalid --name'
+
+# annotation wrap は作成→コマンド実行→終了時刻で更新
+exec mcrl annotation wrap --service web --title deploy -- mcrl version --jq .os
+stderr 'created graph annotation anno1'
+grep 'PUT /api/v0/graph-annotations/anno1' $WORK/requests.log
+! exec mcrl annotation wrap --service web --title deploy2 -- mcrl api
+grep '"title":"deploy2 \(failed: exit 2\)"' $WORK/requests.log
+
+exec mcrl service create web --memo front
+stdout '"name":"web"'
+! exec mcrl service create -bad
+grep '^2$' $WORK/exitcode
+
+-- alert-ids.txt --
+a1
+
+-- patch.yaml --
+warning: 85
+critical: 95
+-- bad-type.yaml --
+type: service
+-- monitor.json --
+{"type":"host","name":"new","metric":"cpu%","operator":">","warning":80,"duration":5}
+-- plugin.txt --
+# name value epoch
+custom.b	2	1762390800
+custom.c 3 1762390860
+-- bulk31.txt --
+bulkhost001
+bulkhost002
+bulkhost003
+bulkhost004
+bulkhost005
+bulkhost006
+bulkhost007
+bulkhost008
+bulkhost009
+bulkhost010
+bulkhost011
+bulkhost012
+bulkhost013
+bulkhost014
+bulkhost015
+bulkhost016
+bulkhost017
+bulkhost018
+bulkhost019
+bulkhost020
+bulkhost021
+bulkhost022
+bulkhost023
+bulkhost024
+bulkhost025
+bulkhost026
+bulkhost027
+bulkhost028
+bulkhost029
+bulkhost030
+bulkhost031

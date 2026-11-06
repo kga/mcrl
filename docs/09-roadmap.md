@@ -28,6 +28,12 @@
 
 ## M2: 更新系（日々の運用で使える）
 
+2026-11-06 に前半（M2a）を実装: 確認プロンプト・`--dry-run`・取り直し・stdin の `-`・`-f`（JSON/YAML）の共通部分、`alert close/memo`、`host status/retire/role set|add|remove`、`service create/delete`、`role create/delete`、`monitor create/update/delete/mute/unmute/template`、`downtime create/update/delete`、`metric post`、`check report/run`、`annotation create/update/delete/wrap`。
+
+残り（M2b）: `edit`（`$EDITOR`・差分・検証）、channel・notification-group・alert-group・dashboard・metadata・user・invitation・aws・org ip-restriction の更新系、`downtime list --active`、補完結果のキャッシュ。
+
+当初の計画:
+
 - `alert close/memo`、`host status/retire/role`、`downtime create/update/delete`
 - `monitor create/update/edit/delete/mute/unmute/template`
 - `metric post`、`check report/run`、`annotation create/wrap`

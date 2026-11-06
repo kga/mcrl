@@ -44,6 +44,10 @@
   - `POST /logs` のみ `Retry-After`（秒）ヘッダを返すと明記
   - `POST /services/<name>/tsdb`: 「1 分あたりのリクエスト数超過」で 429（数値は未記載）
 
+## リクエストヘッダ
+
+- **ボディのない DELETE でも `Content-Type: application/json` が必須**。付けないと `400 Illegal Content-Type. Please try with "Content-Type: application/json"`（実測 2026-11-06、監視・ダウンタイム・アノテーション・サービスの DELETE）。mcrl は GET/HEAD 以外に常に付ける
+
 ## エラー
 
 ドキュメントにはステータスコードと説明文しかないが、実測（2026-11-06）で以下を確認した。
@@ -108,6 +112,19 @@
 - mackerel-agent が登録したホストの `displayName` と `customIdentifier` は `null`、`roles` は `{}`
 - `GET /hosts-by-custom-identifier/<cid>` は該当なしでも 404 ではなく **200 で `{"host": null}`** を返す（実測）
 - `GET /monitors/<id>` は `{"monitor": {...}}` でラップされる（実測）
+
+## 退役したホスト（実測 2026-11-06）
+
+- `POST /hosts/<id>/retire` の後、`GET /hosts/<id>` は `isRetired: true` と `retiredAt` 付きで取れる。`status` は退役前の値（`working` など）のまま
+- `GET /hosts`（全ステータス指定でも）と `GET /hosts?name=` には出てこない。そのため名前では解決できず、`id:` で指定する必要がある
+- 退役したホストに付いていたチェック監視（`GET /monitoring/checks`）は残る。チェック監視を消す API はない
+
+## 書き込み系の実測（2026-11-06）
+
+- `PUT /hosts/<id>/role-fullnames` の後のホストの `roles` は、サービスごとのロール名の配列（順序は追加順ではない）
+- `POST /downtimes` / `PUT /downtimes/<id>` は入力に `id` を足したものを返す。`recurrence.until` もそのまま返る
+- `PUT /graph-annotations/<id>` は全項目の再指定が必要（単体を取得する API がないため、mcrl でもマージできない）
+- `check report` で WARNING、`check run` で CRITICAL を報告しても、3 分待ってもアラートは作られなかった（原因未確認）
 
 ## 列挙値
 

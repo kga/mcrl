@@ -163,7 +163,9 @@ func (c *Client) once(ctx context.Context, method string, u *url.URL, req *Reque
 	if hreq.Header.Get("Accept") == "" {
 		hreq.Header.Set("Accept", "application/json")
 	}
-	if req.Body != nil && hreq.Header.Get("Content-Type") == "" {
+	// Mackerel API はボディのない DELETE でも Content-Type: application/json を要求する
+	// （ないと 400 "Illegal Content-Type"）。GET/HEAD 以外には常に付ける
+	if (req.Body != nil || (method != http.MethodGet && method != http.MethodHead)) && hreq.Header.Get("Content-Type") == "" {
 		hreq.Header.Set("Content-Type", "application/json")
 	}
 

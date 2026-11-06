@@ -67,6 +67,18 @@ func TestDoSendsHeaders(t *testing.T) {
 	}
 }
 
+func TestDoSetsContentTypeOnBodylessDelete(t *testing.T) {
+	c, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("Content-Type"); got != "application/json" {
+			t.Errorf("%s Content-Type = %q", r.Method, got)
+		}
+		io.WriteString(w, `{}`)
+	})
+	if _, err := c.Do(context.Background(), &Request{Method: http.MethodDelete, Path: "/monitors/x"}); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestDoAPIError(t *testing.T) {
 	c, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)

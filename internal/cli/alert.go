@@ -15,7 +15,7 @@ var alertStatuses = []string{"OK", "WARNING", "CRITICAL", "UNKNOWN"}
 
 func newAlertCmd(f *cmdutil.Factory) *cobra.Command {
 	return newGroup("alert", "Manage alerts", []string{"alerts"},
-		newAlertListCmd(f), newAlertGetCmd(f), newAlertLogsCmd(f))
+		newAlertListCmd(f), newAlertGetCmd(f), newAlertLogsCmd(f), newAlertCloseCmd(f), newAlertMemoCmd(f))
 }
 
 func newAlertListCmd(f *cmdutil.Factory) *cobra.Command {

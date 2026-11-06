@@ -77,3 +77,13 @@ func NoArgs(cmd *cobra.Command, args []string) error {
 	}
 	return nil
 }
+
+// MinimumArgs is cobra.MinimumNArgs returning a UsageError.
+func MinimumArgs(n int) cobra.PositionalArgs {
+	return func(cmd *cobra.Command, args []string) error {
+		if len(args) < n {
+			return Usagef("%s requires at least %d argument(s), got %d", cmd.CommandPath(), n, len(args))
+		}
+		return nil
+	}
+}

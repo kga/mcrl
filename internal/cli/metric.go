@@ -13,7 +13,7 @@ import (
 
 func newMetricCmd(f *cmdutil.Factory) *cobra.Command {
 	return newGroup("metric", "Read and post metrics", []string{"metrics"},
-		newMetricGetCmd(f), newMetricLatestCmd(f), newMetricNamesCmd(f))
+		newMetricGetCmd(f), newMetricLatestCmd(f), newMetricNamesCmd(f), newMetricPostCmd(f))
 }
 
 // target is the --host / --service pair shared by metric commands.
@@ -195,5 +195,6 @@ func newAnnotationCmd(f *cmdutil.Factory) *cobra.Command {
 	list.Flags().StringVar(&since, "since", "7d", "start of the time range")
 	list.Flags().StringVar(&until, "until", "now", "end of the time range")
 	_ = list.MarkFlagRequired("service")
-	return newGroup("annotation", "Manage graph annotations", []string{"annotations"}, list)
+	return newGroup("annotation", "Manage graph annotations", []string{"annotations"}, list,
+		newAnnotationCreateCmd(f), newAnnotationUpdateCmd(f), newAnnotationDeleteCmd(f), newAnnotationWrapCmd(f))
 }

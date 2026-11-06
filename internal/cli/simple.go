@@ -36,7 +36,8 @@ func newOrgCmd(f *cmdutil.Factory) *cobra.Command {
 func newServiceCmd(f *cmdutil.Factory) *cobra.Command {
 	return newGroup("service", "Manage services", []string{"services"},
 		listCmd(f, "List services", "/services", "services",
-			"  mcrl service list\n  mcrl service list --jq '.[].name'"))
+			"  mcrl service list\n  mcrl service list --jq '.[].name'"),
+		newServiceCreateCmd(f), newServiceDeleteCmd(f))
 }
 
 func newRoleCmd(f *cmdutil.Factory) *cobra.Command {
@@ -68,14 +69,15 @@ role names.`, "Read", "GET /api/v0/services/<name>/roles"),
 	_ = list.RegisterFlagCompletionFunc("service", func(cmd *cobra.Command, _ []string, _ string) ([]cobra.Completion, cobra.ShellCompDirective) {
 		return completeFromList(cmd, f, "/services", "services", nil, "name", "memo"), cobra.ShellCompDirectiveNoFileComp
 	})
-	return newGroup("role", "Manage roles", []string{"roles"}, list)
+	return newGroup("role", "Manage roles", []string{"roles"}, list, newRoleCreateCmd(f), newRoleDeleteCmd(f))
 }
 
 func newDowntimeCmd(f *cmdutil.Factory) *cobra.Command {
 	return newGroup("downtime", "Manage downtimes", []string{"downtimes"},
 		listCmd(f, "List downtimes", "/downtimes", "downtimes",
 			"  mcrl downtime list\n  mcrl downtime list --jq '.[] | {id, name, start}'"),
-		getCmd(f, mackerel.KindDowntime, "downtime", "  mcrl downtime get weekly-maintenance\n  mcrl downtime get 3Ja1bAxcdef"))
+		getCmd(f, mackerel.KindDowntime, "downtime", "  mcrl downtime get weekly-maintenance\n  mcrl downtime get 3Ja1bAxcdef"),
+		newDowntimeCreateCmd(f), newDowntimeUpdateCmd(f), newDowntimeDeleteCmd(f))
 }
 
 func newChannelCmd(f *cmdutil.Factory) *cobra.Command {
@@ -142,7 +144,8 @@ func newCheckCmd(f *cmdutil.Factory) *cobra.Command {
 	}
 	list.Flags().IntVar(&limit, "limit", 0, "maximum number of check monitors (0 = all)")
 	return newGroup("check", "Manage check monitoring", []string{"checks"}, list,
-		getCmd(f, mackerel.KindCheckMonitor, "check", "  mcrl check get backup\n  mcrl check get 3Ja1bAxcdef"))
+		getCmd(f, mackerel.KindCheckMonitor, "check", "  mcrl check get backup\n  mcrl check get 3Ja1bAxcdef"),
+		newCheckReportCmd(f), newCheckRunCmd(f))
 }
 
 func limitUsage(limit int) error {

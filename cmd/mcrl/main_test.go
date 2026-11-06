@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -116,6 +117,8 @@ func newFakeAPI(logPath string) http.Handler {
 		io.WriteString(w, body)
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		reqBody, _ := io.ReadAll(r.Body)
+		r.Body = io.NopCloser(bytes.NewReader(reqBody))
 		mu.Lock()
 		if f, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600); err == nil {
 			line := r.Method + " " + r.URL.Path
@@ -123,10 +126,30 @@ func newFakeAPI(logPath string) http.Handler {
 				line += "?" + r.URL.RawQuery
 			}
 			io.WriteString(f, line+"\n")
+			if len(reqBody) > 0 {
+				io.WriteString(f, "BODY "+string(reqBody)+"\n")
+			}
 			f.Close()
 		}
 		mu.Unlock()
+		// echo は受け取ったボディに id を足して返す
+		echo := func(id string) {
+			var m map[string]any
+			if json.Unmarshal(reqBody, &m) != nil {
+				writeJSON(w, 400, `{"error":{"message":"Bad request."}}`)
+				return
+			}
+			m["id"] = id
+			out, _ := json.Marshal(m)
+			writeJSON(w, 200, string(out))
+		}
+		success := func() { writeJSON(w, 200, `{"success":true}`) }
 
+		// 本物の API と同じく、GET 以外は Content-Type: application/json がないと 400
+		if r.Method != http.MethodGet && r.Header.Get("Content-Type") != "application/json" {
+			writeJSON(w, 400, `{"error":{"message":"Illegal Content-Type. Please try with \"Content-Type: application/json\""}}`)
+			return
+		}
 		switch r.Header.Get("X-Api-Key") {
 		case "good-key", "other-key":
 		default:
@@ -147,7 +170,7 @@ func newFakeAPI(logPath string) http.Handler {
 			case "":
 				writeJSON(w, 200, `{"hosts":[{"id":"5Vf7Be7guuy","name":"web-1","status":"working","createdAt":1793970084},{"id":"5Vf7Be7guuz","name":"db-1","status":"standby","createdAt":1793970085}]}`)
 			case "web-1":
-				writeJSON(w, 200, `{"hosts":[{"id":"5Vf7Be7guuy","name":"web-1","status":"working","createdAt":1793970084}]}`)
+				writeJSON(w, 200, `{"hosts":[{"id":"5Vf7Be7guuy","name":"web-1","status":"working","createdAt":1793970084,"roles":{"web":["app"]}}]}`)
 			case "dup":
 				writeJSON(w, 200, `{"hosts":[{"id":"dupaaaaaaa1","name":"dup"},{"id":"dupaaaaaaa2","name":"dup"}]}`)
 			default:
@@ -172,7 +195,41 @@ func newFakeAPI(logPath string) http.Handler {
 			}
 			writeJSON(w, 200, `{"graphAnnotations":[{"id":"anno1","title":"deploy","service":"web","from":1,"to":2}]}`)
 		case route == "GET /api/v0/hosts/5Vf7Be7guuy":
-			writeJSON(w, 200, `{"host":{"id":"5Vf7Be7guuy","name":"web-1","status":"working"}}`)
+			writeJSON(w, 200, `{"host":{"id":"5Vf7Be7guuy","name":"web-1","status":"working","roles":{"web":["app"]}}}`)
+		case strings.HasPrefix(route, "GET /api/v0/hosts/bulk"):
+			id := strings.TrimPrefix(r.URL.Path, "/api/v0/hosts/")
+			writeJSON(w, 200, `{"host":{"id":"`+id+`","name":"`+id+`"}}`)
+		case route == "POST /api/v0/hosts/5Vf7Be7guuy/status", route == "POST /api/v0/hosts/5Vf7Be7guuy/retire",
+			route == "PUT /api/v0/hosts/5Vf7Be7guuy/role-fullnames", route == "POST /api/v0/tsdb",
+			route == "POST /api/v0/services/web/tsdb", route == "POST /api/v0/monitoring/checks/report":
+			success()
+		case route == "POST /api/v0/hosts/bulk-update-statuses", route == "POST /api/v0/hosts/bulk-retire":
+			var b struct{ IDs []string }
+			if json.Unmarshal(reqBody, &b) != nil || len(b.IDs) > 30 {
+				writeJSON(w, 400, `{"error":{"message":"too many ids"}}`)
+				return
+			}
+			success()
+		case route == "POST /api/v0/alerts/a1/close":
+			writeJSON(w, 200, `{"id":"a1","status":"OK","reason":"done","closedAt":1762390900}`)
+		case route == "PUT /api/v0/alerts/a1":
+			writeJSON(w, 200, `{"id":"a1","memo":"noted"}`)
+		case route == "POST /api/v0/monitors":
+			echo("monNEW00001")
+		case route == "PUT /api/v0/monitors/mon0000cpu1":
+			echo("mon0000cpu1")
+		case route == "DELETE /api/v0/monitors/mon0000cpu1":
+			writeJSON(w, 200, `{"id":"mon0000cpu1","name":"CPU high","type":"host"}`)
+		case route == "GET /api/v0/downtimes":
+			writeJSON(w, 200, `{"downtimes":[{"id":"dt000000001","name":"backup","start":1762390800,"duration":60,"serviceScopes":["web"]}]}`)
+		case route == "POST /api/v0/downtimes":
+			echo("dtNEW000001")
+		case route == "PUT /api/v0/downtimes/dt000000001":
+			echo("dt000000001")
+		case route == "PUT /api/v0/graph-annotations/anno1":
+			echo("anno1")
+		case route == "POST /api/v0/services":
+			writeJSON(w, 200, string(reqBody))
 		case strings.HasPrefix(route, "GET /api/v0/hosts/"):
 			writeJSON(w, 404, `{"error":{"message":"Host Not Found."}}`)
 		case route == "GET /api/v0/alerts":
