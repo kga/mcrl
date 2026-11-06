@@ -7,6 +7,9 @@ workflows:
         - 'actions/checkout@v5.1.0'
         - 'actions/setup-go@v6.5.0'
         - 'golangci/golangci-lint-action@v8.0.0'
+    '.github/workflows/cross-platform.yml':
+        - 'actions/checkout@v5.1.0'
+        - 'actions/setup-go@v6.5.0'
     '.github/workflows/release.yml':
         - 'actions/attest-build-provenance@v3.0.0'
         - 'actions/checkout@v5.1.0'

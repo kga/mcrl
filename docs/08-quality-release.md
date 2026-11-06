@@ -26,7 +26,10 @@ api-calls 'POST /api/v0/hosts/bulk-retire' 2
 
 - `golangci-lint`（`errcheck`、`govet`、`staticcheck`、`revive` など）
 - `go vet`、`go test -race`
-- GitHub Actions: Linux / macOS / Windows でテスト
+- GitHub Actions（private リポジトリでは無料枠が月 $12 ぶんで、macOS は Linux の約 10 倍の料金のため、回数と OS を絞る。[decisions.md](decisions.md) D14）
+  - push・PR: Linux で Go 2 バージョンのテスト、lint、govulncheck、actions.lock の検証。ドキュメント・`dev/`・`LICENSE` だけの変更では回さない。同じブランチの古い実行は取り消す
+  - macOS・Windows: `cross-platform.yml` で、リリースのタグと手動実行（`gh workflow run cross-platform.yml`）のときだけ
+  - Dependabot: エコシステムごとに 1 本の PR にまとめて月 1 回
 - ツールのバージョンは `mise.toml` で固定し、ローカルと CI で同じものを使う
 
 ## 配布

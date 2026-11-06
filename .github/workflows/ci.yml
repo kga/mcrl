@@ -1,25 +1,36 @@
 name: CI
 
+# Linux だけで回す。macOS・Windows は cross-platform.yml（タグと手動実行のみ）で確かめる。
+# ドキュメントや開発用ツールだけの変更では回さない（private リポジトリの Actions は有料枠を消費するため）
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - "dev/**"
+      - "LICENSE"
   pull_request:
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - "dev/**"
+      - "LICENSE"
 
 permissions:
   contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: true
 
 jobs:
   test:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
         go: ["1.27.x", "1.26.x"]
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5.1.0

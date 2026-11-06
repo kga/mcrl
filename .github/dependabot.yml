@@ -1,15 +1,22 @@
 version: 2
 updates:
-  # 対象の workflow は actions.lock に載っているので、Dependabot が lockfile も同じ PR で更新する
+  # 対象の workflow は actions.lock に載っているので、Dependabot が lockfile も同じ PR で更新する。
+  # CI の実行回数を抑えるため、エコシステムごとに 1 本の PR にまとめて月 1 回にする
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: weekly
+      interval: monthly
     cooldown:
       default-days: 7
+    groups:
+      github-actions:
+        patterns: ["*"]
   - package-ecosystem: gomod
     directory: /
     schedule:
-      interval: weekly
+      interval: monthly
     cooldown:
       default-days: 7
+    groups:
+      go-modules:
+        patterns: ["*"]
