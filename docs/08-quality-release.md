@@ -47,17 +47,17 @@ GoReleaser で作る（[decisions.md](decisions.md) D15。リポジトリが pri
 
 1. main に push すると、tagpr が「リリース PR」（次の版と `CHANGELOG.md`）を作る・更新する
 2. 次の版はリリース PR のラベルで決まる: `tagpr:minor` / `tagpr:major`、なければ patch。マージ済み PR に `feature`・`minor` / `major`・`breaking-change` ラベルがあれば tagpr が自動で付ける
-3. リリース PR をマージすると、tagpr がタグを打ち、同じ workflow（`tagpr.yml`）から `cross-platform.yml`（macOS・Windows のテスト）と `release.yml`（GoReleaser）が呼ばれる
-4. GitHub の Releases で下書きを確認して公開する
+3. **リリース PR のマージがリリースの承認**。マージすると tagpr がタグを打ち、同じ workflow（`tagpr.yml`）から `cross-platform.yml`（macOS・Windows のテスト）と `release.yml` が呼ばれる
+4. `release.yml` は、GoReleaser で Release の下書きと ghcr のイメージを作り、artifact attestation を付け、バイナリの版とアーカイブの数を確かめてから **自動で公開** し、release attestation を検証する。手で公開する作業はない
 
-- リポジトリは **immutable releases** を有効にしている（2026-11-07）。公開した Release は、資産もタグも変更・削除できない。そのため GoReleaser は下書きを作ってすべての資産を付け、オーナーが確認してから公開する。workflow を再実行したときは同じタグの下書きを使い回し（`use_existing_draft`）、途中まで上げた資産は置き換える（`replace_existing_artifacts`）。公開後は `gh release verify <tag>` で GitHub の release attestation を確かめられる（v0.1.0 は有効化の前に公開したので対象外）
+- リポジトリは **immutable releases** を有効にしている（2026-11-07）。公開した Release は、資産もタグも変更・削除できない。そのため GoReleaser は下書きを作ってすべての資産を付け、検査が通ってから workflow が公開する（[decisions.md](decisions.md) D17）。workflow を再実行したときは同じタグの下書きを使い回し（`use_existing_draft`）、途中まで上げた資産は置き換える（`replace_existing_artifacts`）。公開後は `gh release verify <tag>` で GitHub の release attestation を確かめられる（v0.1.0 は有効化の前に公開したので対象外）
 - 変更履歴は GitHub が生成するリリースノート（マージされた PR が単位、分類は `.github/release.yml`）なので、main に直接 push した変更は載らない
 - `gh workflow run release.yml` でスナップショット（公開しない）を作れる。人が手で `v*` タグを push した場合も `release.yml` と `cross-platform.yml` が動く
 - リポジトリ設定 Settings → Actions → General → Workflow permissions の「Allow GitHub Actions to create and approve pull requests」が必要
 
 ### サプライチェーン
 
-- 成果物に GitHub の artifact attestation で SLSA provenance を付ける
+- 成果物に GitHub の artifact attestation で SLSA provenance を付ける（`checksums.txt` に載るアーカイブすべて。`gh attestation verify <file> --repo kga/mcrl` で確かめられる）
 - 成果物への cosign（keyless）署名と SBOM（SPDX）の添付は配布準備のときに入れる（SBOM の生成には CI に syft が要る）
 - Go の依存と GitHub Actions の更新は Dependabot（`cooldown` 7 日。公開直後の版をすぐには取り込まない）
 - `govulncheck` を CI で実行（バージョン固定）
