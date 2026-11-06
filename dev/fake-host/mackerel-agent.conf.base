@@ -1,0 +1,7 @@
+# mcrl fake host 用の mackerel-agent 設定（apikey は entrypoint.sh が実行時に先頭へ追記する）
+root = "/var/lib/mackerel-agent"
+pidfile = "/var/run/mackerel-agent.pid"
+
+[host_status]
+on_start = "working"
+on_stop  = "poweroff"
