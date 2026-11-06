@@ -51,7 +51,7 @@ GoReleaser で作る（[decisions.md](decisions.md) D15。リポジトリが pri
 4. `release.yml` は、`cross-platform.yml`（macOS・Windows のテスト）を通したあと、GoReleaser で Release の下書きと ghcr のイメージを作り、バイナリの版とアーカイブの数を確かめてから **自動で公開** し、release attestation を確かめる（確かめられなければ失敗）。手で公開する作業はない
 5. 途中で失敗したら、`gh workflow run release.yml -f tag=vX.Y.Z` でそのタグのリリースをやり直せる（下書きは使い回す）
 
-- リポジトリは **immutable releases** を有効にしている（2026-11-07）。公開した Release は、資産もタグも変更・削除できない。そのため GoReleaser は下書きを作ってすべての資産を付け、検査が通ってから workflow が公開する（[decisions.md](decisions.md) D17）。workflow を再実行したときは同じタグの下書きを使い回し（`use_existing_draft`）、途中まで上げた資産は置き換える（`replace_existing_artifacts`）。公開すると GitHub が release attestation を作る。private リポジトリでも作られることを v0.1.1 で確認した（2026-11-07）。利用者は `gh release verify <tag>`、ダウンロードしたファイルは `gh release verify-asset <tag> <file>` で確かめられる（v0.1.0 は有効化の前に公開したので対象外）
+- リポジトリは **immutable releases** を有効にしている（2026-11-07）。公開した Release は、資産もタグも変更・削除できない。そのため GoReleaser は下書きを作ってすべての資産を付け、検査が通ってから workflow が公開する（[decisions.md](decisions.md) D17）。workflow を再実行したときは同じタグの下書きを使い回し（`use_existing_draft`）、途中まで上げた資産は置き換える（`replace_existing_artifacts`）。公開すると GitHub が release attestation を作る。private リポジトリでも作られることを v0.1.1 で確認した（2026-11-07）。利用者は `gh release verify <tag>`、ダウンロードしたファイルは `gh release verify-asset <tag> <file>` で確かめられる。Web UI でも、Release のページの Assets に各ファイルの sha256 と **Release attestation (json)** が並ぶ（v0.1.0 は有効化の前に公開したので対象外）
 - 変更履歴は GitHub が生成するリリースノート（マージされた PR が単位、分類は `.github/release.yml`）なので、main に直接 push した変更は載らない
 - `gh workflow run release.yml`（tag なし）でスナップショット（公開しない）を作れる。人が手で `v*` タグを push した場合も同じ流れで動く
 - 前提となる GitHub の設定（App、ルールセット、auto-merge など）は [repository-settings.md](repository-settings.md)
