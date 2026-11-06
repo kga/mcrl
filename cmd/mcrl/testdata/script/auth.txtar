@@ -1,6 +1,6 @@
 # キーがなければ終了コード 3 とヒント
-exec sh -c 'mcrl api /org; echo exit=$?'
-stdout 'exit=3'
+! exec mcrl api /org
+grep '^3$' $WORK/exitcode
 stderr 'mcrl auth login'
 
 # 端末でなければ --with-token が要る
@@ -73,8 +73,8 @@ stdout '"removed":\["keyring"\]'
 exec mcrl auth logout --profile second
 stdout '"removed":\["config:api_key"\]'
 ! grep api_key $HOME/.config/mcrl/config.toml
-exec sh -c 'mcrl auth status; echo exit=$?'
-stdout 'exit=3'
+! exec mcrl auth status
+grep '^3$' $WORK/exitcode
 stdout '"apiKey":null'
 
 -- good-key.txt --

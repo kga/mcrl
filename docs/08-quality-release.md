@@ -45,10 +45,23 @@ GoReleaser で以下を一度に作る。
 
 ### サプライチェーン
 
-- 成果物に cosign（keyless）で署名
-- SBOM（SPDX）を添付
-- GitHub の artifact attestation で SLSA provenance を付ける
-- 依存の更新は Renovate、`govulncheck` を CI で実行
+- 成果物に GitHub の artifact attestation で SLSA provenance を付ける
+- 成果物への cosign（keyless）署名と SBOM（SPDX）の添付は配布準備のときに入れる（SBOM の生成には CI に syft が要る）
+- Go の依存と GitHub Actions の更新は Dependabot（`cooldown` 7 日。公開直後の版をすぐには取り込まない）
+- `govulncheck` を CI で実行（バージョン固定）
+
+### GitHub Actions の固定（actions.lock）
+
+[workflow lockfile](https://docs.github.com/actions/concepts/security/workflow-dependency-lockfiles)（2026-10-28 GA）で、workflow が使う action を推移的な依存まで commit に固定する（[decisions.md](decisions.md) D13）。
+
+- `.github/workflows/actions.lock` は `gh actions-lock`（`github/gh-actions-lock` 拡張）で生成する。手で編集しない
+- workflow を変えたら `gh actions-lock` を実行して lockfile を更新し、同じコミットに含める
+- CI の `actions-lock` ジョブが `gh actions-lock --verify` で lockfile の不足・ずれを検出する（拡張自体も `--pin` で版を固定）
+- Dependabot が action を更新するときは lockfile も同じ PR で更新される
+- `uses:` はタグ（完全な semver）で書く。lockfile があれば `uses:` に SHA を書く必要はない
+- workflow 内で実行時に取ってくるツール（golangci-lint、goreleaser、govulncheck、gh 拡張）は lockfile の対象外なので、すべてバージョンを固定する
+- その他: `permissions` は既定 `contents: read` でジョブごとに最小限、`actions/checkout` は `persist-credentials: false`、`.github/` は CODEOWNERS でオーナーのレビュー必須
+- リポジトリ設定で「Require lockfile」（Actions のポリシー）を有効にすると、lockfile に載っていない workflow の実行を止められる。設定の変更はオーナーが行う
 
 ### 自己更新
 

@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -26,7 +27,12 @@ func TestMain(m *testing.M) {
 		"mcrl": func() {
 			// テストでは本物のキーチェーンに触れない
 			kr := fileKeyring(os.Getenv("MCRL_TEST_KEYRING"))
-			os.Exit(cli.Main(context.Background(), os.Args[1:], cmdutil.System(), cli.WithKeyring(kr)))
+			code := cli.Main(context.Background(), os.Args[1:], cmdutil.System(), cli.WithKeyring(kr))
+			// 終了コードはファイルに残し、スクリプトから grep で確かめる（sh -c は Windows でパスを書き換えるため使わない）
+			if p := os.Getenv("MCRL_TEST_EXIT_FILE"); p != "" {
+				_ = os.WriteFile(p, []byte(strconv.Itoa(code)+"\n"), 0o600)
+			}
+			os.Exit(code)
 		},
 	})
 }
@@ -38,10 +44,16 @@ func TestScript(t *testing.T) {
 			srv := httptest.NewServer(newFakeAPI(filepath.Join(env.WorkDir, "requests.log")))
 			env.Defer(srv.Close)
 			env.Setenv("MCRL_API_BASE", srv.URL)
-			env.Setenv("HOME", filepath.Join(env.WorkDir, "home"))
+			home := filepath.Join(env.WorkDir, "home")
+			env.Setenv("HOME", home)
+			env.Setenv("USERPROFILE", home)
 			env.Setenv("XDG_CONFIG_HOME", "")
+			// Windows でも設定ファイルが $HOME/.config/mcrl/config.toml になるようにする
+			env.Setenv("APPDATA", filepath.Join(home, ".config"))
+			env.Setenv("LOCALAPPDATA", filepath.Join(home, ".cache"))
 			env.Setenv("MCRL_TEST_KEYRING", filepath.Join(env.WorkDir, "keyring.json"))
 			env.Setenv("SERVER", srv.URL)
+			env.Setenv("MCRL_TEST_EXIT_FILE", filepath.Join(env.WorkDir, "exitcode"))
 			return nil
 		},
 	})

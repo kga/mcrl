@@ -1,0 +1,2 @@
+# workflow と actions.lock の変更はオーナーのレビューを必須にする（ブランチ保護と組み合わせる）
+/.github/ @kga

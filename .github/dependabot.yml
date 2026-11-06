@@ -1,0 +1,15 @@
+version: 2
+updates:
+  # 対象の workflow は actions.lock に載っているので、Dependabot が lockfile も同じ PR で更新する
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7

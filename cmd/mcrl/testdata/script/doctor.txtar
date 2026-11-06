@@ -22,7 +22,7 @@ exec mcrl version --jq '.os'
 stdout .
 
 exec mcrl config path --jq '.config'
-stdout 'home/.config/mcrl/config.toml$'
+stdout 'mcrl[/\\\\]config.toml$'
 
 -- broken.toml --
 [profiles.x]

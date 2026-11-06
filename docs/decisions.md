@@ -18,6 +18,7 @@
 | D10 | 2026-11-06 | モジュールパスは `github.com/kga/mcrl` | |
 | D11 | 2026-11-06 | 新バージョン通知・自己更新は **作らない** | 更新はパッケージマネージャに任せる。頼まれていない通信を裏で発生させない（IP 制限環境・CI の邪魔になる）。[08-quality-release.md](08-quality-release.md#自己更新) |
 | D12 | 2026-11-06 | `{"success": true}` しか返さない更新 API の後は、**リソースを取得し直して出力する**（`--no-refetch` で抑止） | 更新系コマンドの出力を「更新後のリソース」に揃え、パイプで次の処理に渡せるようにする。[04-cli-ux.md](04-cli-ux.md#json-出力の約束) |
+| D13 | 2026-11-06 | GitHub Actions は **workflow lockfile（actions.lock）** で推移的な依存まで commit に固定し、CI で `gh actions-lock --verify` を実行する | タグの付け替えや乗っ取りで別のコードが実行されるのを防ぐ。lockfile の対象外（実行時に取得するツール）はバージョン固定で補う。[08-quality-release.md](08-quality-release.md#github-actions-の固定actionslock) |
 
 ## 未決（優先度順）
 
