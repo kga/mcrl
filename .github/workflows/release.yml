@@ -1,23 +1,22 @@
 name: Release
 
-# リリースを作って公開する。
-# - tagpr.yml から tag を渡されて呼ばれる（通常のリリース。リリース PR のマージが承認にあたる）
-# - 人が手で v* タグを push したとき
-# - 手動実行（workflow_dispatch）はスナップショットを作るだけで、何も公開しない
+# v* タグ（通常は tagpr が打つ）でリリースを作って公開する。承認はリリース PR のマージで済んでいる。
+# 1. macOS・Windows のテスト（cross-platform.yml）
+# 2. GoReleaser で Release の下書きと ghcr.io/kga/mcrl のイメージを作る
+# 3. バイナリの版とアーカイブの数を確かめてから公開する（immutable releases のため公開は最後）
 #
-# immutable releases のため、公開後は資産もタグも変えられない。GoReleaser で下書きと ghcr のイメージを
-# 作り、成果物を確かめてから最後に公開する。
+# 手動実行（workflow_dispatch）は、tag を指定すればそのタグのリリースをやり直し、
+# 空ならスナップショットを作るだけで何も公開しない。
 # リポジトリが private の間は artifact attestation が使えない（Enterprise Cloud が必要）ため付けない。
 on:
   push:
     tags: ["v*"]
   workflow_dispatch:
-  workflow_call:
     inputs:
       tag:
-        description: Tag to release
+        description: Tag to release again (empty = snapshot build only)
         type: string
-        required: true
+        required: false
 
 permissions:
   contents: read
@@ -27,7 +26,13 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  cross-platform:
+    uses: $/.github/workflows/cross-platform.yml
+    with:
+      ref: ${{ inputs.tag || github.ref }}
+
   goreleaser:
+    needs: cross-platform
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -35,7 +40,7 @@ jobs:
       packages: write # ghcr.io
     env:
       TAG: ${{ inputs.tag || github.ref_name }}
-      PUBLISH: ${{ github.event_name != 'workflow_dispatch' }}
+      PUBLISH: ${{ github.event_name == 'push' || inputs.tag != '' }}
     steps:
       - uses: actions/checkout@v7.0.1
         with:
@@ -47,7 +52,7 @@ jobs:
           go-version: "1.27.x"
       - uses: docker/setup-buildx-action@v4.4.1
       - uses: docker/login-action@v4.7.0
-        if: github.event_name != 'workflow_dispatch'
+        if: env.PUBLISH == 'true'
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -55,7 +60,7 @@ jobs:
       - uses: goreleaser/goreleaser-action@v7.3.0
         with:
           version: v2.20.0
-          args: release --clean ${{ github.event_name == 'workflow_dispatch' && '--snapshot' || '' }}
+          args: release --clean ${{ env.PUBLISH != 'true' && '--snapshot' || '' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Check the built binary and the draft

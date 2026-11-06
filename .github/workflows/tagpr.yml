@@ -1,10 +1,11 @@
 name: tagpr
 
-# main に push されるたびにリリース PR を作る・更新する。リリース PR をマージすると
-# tagpr がタグを打ち、続けて macOS・Windows のテストとリリース（GitHub Releases の下書き・ghcr）を行う。
-# GITHUB_TOKEN で打ったタグは別の workflow を起動しないので、同じ workflow の中で呼び出す。
-# 呼び出しは ./ ではなく $/ で書く: ランナーに checkout された内容ではなく、この workflow と同じ
-# コミットの workflow が使われ、このリポジトリの actions.lock が正しく適用される。
+# main に push されるたびにリリース PR を作る・更新し、マージされたらタグを打つ。
+# GitHub App のトークンを使うので、
+# - リリース PR でも CI が動き、main の必須チェック（ci-ok）を満たせる
+# - tagpr が打ったタグで release.yml が起動する（GITHUB_TOKEN のタグは別 workflow を起動しない）
+# App の Client ID（変数 TAGPR_APP_CLIENT_ID）と秘密鍵（シークレット TAGPR_APP_PRIVATE_KEY）は
+# Environment「tagpr」に置き、main からだけ使えるようにしてある（PR のブランチの workflow からは読めない）。
 on:
   push:
     branches: [main]
@@ -20,34 +21,20 @@ jobs:
   tagpr:
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    permissions:
-      contents: write
-      pull-requests: write
-      issues: read
-    outputs:
-      tag: ${{ steps.tagpr.outputs.tag }}
+    environment: tagpr
     steps:
+      - id: app-token
+        uses: actions/create-github-app-token@v3.3.0
+        with:
+          client-id: ${{ vars.TAGPR_APP_CLIENT_ID }}
+          private-key: ${{ secrets.TAGPR_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+          permission-issues: read
       - uses: actions/checkout@v7.0.1
         with:
+          token: ${{ steps.app-token.outputs.token }}
           persist-credentials: false
-      - id: tagpr
-        uses: Songmu/tagpr@v1.21.4
+      - uses: Songmu/tagpr@v1.21.4
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  cross-platform:
-    needs: tagpr
-    if: needs.tagpr.outputs.tag != ''
-    uses: $/.github/workflows/cross-platform.yml
-    with:
-      ref: ${{ needs.tagpr.outputs.tag }}
-
-  release:
-    needs: [tagpr, cross-platform]
-    if: needs.tagpr.outputs.tag != ''
-    permissions:
-      contents: write
-      packages: write
-    uses: $/.github/workflows/release.yml
-    with:
-      tag: ${{ needs.tagpr.outputs.tag }}
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
