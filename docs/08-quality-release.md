@@ -34,17 +34,21 @@ api-calls 'POST /api/v0/hosts/bulk-retire' 2
 
 ## 配布
 
-GoReleaser で以下を一度に作る。
+GoReleaser で作る（[decisions.md](decisions.md) D15。リポジトリが private の間の構成）。
 
-| 経路 | 対象 |
-|---|---|
-| GitHub Releases | tar.gz / zip（darwin・linux・windows × amd64・arm64）、チェックサム |
-| Homebrew | tap（`kga/tap/mcrl`） |
-| aqua / mise | aqua registry への登録（mise からも `aqua:` バックエンドで入る） |
-| Linux パッケージ | deb / rpm / apk（nfpm） |
-| コンテナイメージ | `ghcr.io/kga/mcrl`（distroless、マルチアーキ） |
-| Windows | Scoop / WinGet |
-| Go | `go install github.com/kga/mcrl/cmd/mcrl@latest` |
+| 経路 | 内容 | 状態 |
+|---|---|---|
+| GitHub Releases | tar.gz / zip（darwin・linux・windows × amd64・arm64）、`checksums.txt`。各アーカイブに `LICENSE`・`README.md`・`completions/`（bash・zsh・fish） | v0.1.0 から。下書きで作り、オーナーが確認して公開 |
+| コンテナイメージ | `ghcr.io/kga/mcrl:<version>` と `latest`（linux/amd64・arm64）。distroless static（非 root）をダイジェストで固定 | v0.1.0 から |
+| Go | `go install github.com/kga/mcrl/cmd/mcrl@latest` | リポジトリを公開したら |
+| Homebrew / aqua / Scoop / WinGet / deb・rpm | | リポジトリを公開するときに検討 |
+
+リリースの手順:
+
+1. `gh workflow run cross-platform.yml` で macOS・Windows のテストを通す
+2. `gh workflow run release.yml` でスナップショット（公開しない）を作り、イメージのビルドまで通ることを確かめる
+3. `git tag v0.x.y && git push origin v0.x.y` で Release の下書きとイメージが作られる
+4. GitHub の Releases で下書きを確認して公開する
 
 ### サプライチェーン
 

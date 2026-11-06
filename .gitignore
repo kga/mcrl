@@ -8,3 +8,6 @@ mise.local.toml
 # ビルド成果物
 /bin/
 /dist/
+
+# GoReleaser の before フックが作る補完スクリプト
+/completions/

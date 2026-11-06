@@ -3,6 +3,7 @@ module github.com/kga/mcrl
 go 1.26.0
 
 require (
+	github.com/goccy/go-yaml v1.19.2
 	github.com/itchyny/gojq v0.12.20
 	github.com/mattn/go-isatty v0.0.24
 	github.com/pelletier/go-toml/v2 v2.4.3
@@ -14,7 +15,6 @@ require (
 
 require (
 	github.com/danieljoos/wincred v1.2.3 // indirect
-	github.com/goccy/go-yaml v1.19.2 // indirect
 	github.com/godbus/dbus/v5 v5.2.2 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/itchyny/timefmt-go v0.1.9 // indirect

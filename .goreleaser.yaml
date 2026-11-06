@@ -1,8 +1,11 @@
 version: 2
 
+project_name: mcrl
+
 before:
   hooks:
     - go mod tidy
+    - ./scripts/completions.sh
 
 builds:
   - main: ./cmd/mcrl
@@ -26,10 +29,36 @@ archives:
         formats: [zip]
     files:
       - LICENSE
+      - README.md
+      - completions/*
 
 checksum:
   name_template: checksums.txt
 
+dockers_v2:
+  - images:
+      - ghcr.io/kga/mcrl
+    tags:
+      - "{{ .Version }}"
+      - "{{ if not .Prerelease }}latest{{ end }}"
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    labels:
+      org.opencontainers.image.title: mcrl
+      org.opencontainers.image.description: A command-line client for the Mackerel API
+      org.opencontainers.image.source: https://github.com/kga/mcrl
+      org.opencontainers.image.version: "{{ .Version }}"
+      org.opencontainers.image.revision: "{{ .FullCommit }}"
+      org.opencontainers.image.licenses: MIT
+
+release:
+  draft: true
+  prerelease: auto
+
 changelog:
   use: github
   sort: asc
+  filters:
+    exclude:
+      - "^Merge pull request"

@@ -1,20 +1,27 @@
 name: Release
 
+# v* タグで GitHub Releases の下書きと ghcr.io/kga/mcrl のイメージを作る。
+# 手動実行（workflow_dispatch）はスナップショットを作るだけで、何も公開しない。
+# リポジトリが private の間は artifact attestation が使えない（Enterprise Cloud が必要）ため付けない。
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
 
 permissions:
   contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   goreleaser:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
-      contents: write
-      id-token: write
-      attestations: write
+      contents: write # GitHub Releases
+      packages: write # ghcr.io
     steps:
       - uses: actions/checkout@v7.0.1
         with:
@@ -23,12 +30,16 @@ jobs:
       - uses: actions/setup-go@v7.0.0
         with:
           go-version: "1.27.x"
+      - uses: docker/setup-buildx-action@v4.4.1
+      - uses: docker/login-action@v4.7.0
+        if: github.event_name == 'push'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       - uses: goreleaser/goreleaser-action@v7.3.0
         with:
           version: v2.20.0
-          args: release --clean
+          args: release --clean ${{ github.event_name == 'workflow_dispatch' && '--snapshot' || '' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - uses: actions/attest-build-provenance@v4.2.2
-        with:
-          subject-path: "dist/*.tar.gz, dist/*.zip"

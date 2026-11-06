@@ -20,3 +20,10 @@ updates:
     groups:
       go-modules:
         patterns: ["*"]
+  # Dockerfile のベースイメージ（ダイジェストで固定）
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7
