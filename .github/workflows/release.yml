@@ -1,9 +1,12 @@
 name: Release
 
-# GitHub Releases の下書きと ghcr.io/kga/mcrl のイメージを作る。
-# - tagpr.yml から tag を渡されて呼ばれる（通常のリリース）
+# リリースを作って公開する。
+# - tagpr.yml から tag を渡されて呼ばれる（通常のリリース。リリース PR のマージが承認にあたる）
 # - 人が手で v* タグを push したとき
 # - 手動実行（workflow_dispatch）はスナップショットを作るだけで、何も公開しない
+#
+# immutable releases のため、公開後は資産もタグも変えられない。GoReleaser で下書きと ghcr のイメージを
+# 作り、成果物を確かめてから最後に公開する。
 # リポジトリが private の間は artifact attestation が使えない（Enterprise Cloud が必要）ため付けない。
 on:
   push:
@@ -30,6 +33,9 @@ jobs:
     permissions:
       contents: write # GitHub Releases
       packages: write # ghcr.io
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
+      PUBLISH: ${{ github.event_name != 'workflow_dispatch' }}
     steps:
       - uses: actions/checkout@v7.0.1
         with:
@@ -52,3 +58,37 @@ jobs:
           args: release --clean ${{ github.event_name == 'workflow_dispatch' && '--snapshot' || '' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Check the built binary and the draft
+        if: env.PUBLISH == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -eu
+          got=$(./dist/mcrl_linux_amd64_v1/mcrl version --jq .version)
+          if [ "v$got" != "$TAG" ]; then
+            echo "::error::the binary reports version $got, not $TAG"
+            exit 1
+          fi
+          want=$(grep -c . dist/checksums.txt)
+          have=$(gh release view "$TAG" --json assets --jq '[.assets[] | select(.name != "checksums.txt")] | length')
+          if [ "$have" -ne "$want" ]; then
+            echo "::error::the draft has $have archives, expected $want"
+            exit 1
+          fi
+      - name: Publish the release
+        if: env.PUBLISH == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release edit "$TAG" --draft=false
+      - name: Verify the release attestation
+        if: env.PUBLISH == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # immutable release の attestation は公開直後に作られるので、少し待って確かめる。
+          # private リポジトリで作られない場合もあるので、確かめられなくても失敗にはしない
+          for i in 1 2 3 4 5 6; do
+            if gh release verify "$TAG"; then exit 0; fi
+            sleep 10
+          done
+          echo "::warning::could not verify the release attestation of $TAG yet"

@@ -52,8 +52,13 @@ dockers_v2:
       org.opencontainers.image.revision: "{{ .FullCommit }}"
       org.opencontainers.image.licenses: MIT
 
+# リポジトリは immutable releases を有効にしている。公開後は資産もタグも変えられないので、
+# 下書きにすべての資産を付けてから、オーナーが確認して公開する。
+# workflow を再実行したときは、同じタグの下書きを使い回し、途中まで上げた資産は置き換える。
 release:
   draft: true
+  use_existing_draft: true
+  replace_existing_artifacts: true
   prerelease: auto
 
 # tagpr の CHANGELOG.md と同じく、GitHub が生成するリリースノート（.github/release.yml の分類）を使う
