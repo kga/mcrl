@@ -165,7 +165,8 @@ mcrl/
 ├── testdata/
 │   ├── script/         # testscript (*.txtar)
 │   └── fixtures/       # API レスポンスの記録
-├── docs/
+├── docs/             # 利用者向けの文書（英語）。reference/ はコマンドから生成
+│   └── design/         # 設計資料（日本語）
 ├── mise.toml           # Go・golangci-lint・goreleaser のバージョン固定とタスク
 ├── .goreleaser.yaml
 └── go.mod              # module github.com/kga/mcrl

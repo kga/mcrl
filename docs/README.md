@@ -1,28 +1,18 @@
-# mcrl 設計ドキュメント
+# mcrl documentation
 
-Mackerel API のための新しい CLI「mcrl」の設計資料。
+Guides for using mcrl. For installation and a quick start, see the [README](../README.md).
 
-| ドキュメント | 内容 | ステータス |
-|---|---|---|
-| [01-vision.md](01-vision.md) | 目的・利用者・設計原則・非目標 | 提案 |
-| [02-language.md](02-language.md) | 実装言語の比較と選定 | 決定（Go） |
-| [03-architecture.md](03-architecture.md) | パッケージ構成・API クライアント・HTTP 層・ライブラリ | 提案 |
-| [04-cli-ux.md](04-cli-ux.md) | 文法・グローバルフラグ・出力・入力・名前解決・時刻・終了コード | 提案 |
-| [05-commands.md](05-commands.md) | コマンド体系と設計の意図 | 提案 |
-| [reference/](reference/README.md) | コマンドリファレンスとエンドポイント対応表（生成物、`mise run docs`） | 自動生成 |
-| [06-auth-config.md](06-auth-config.md) | プロファイル・API キーの保存と解決・設定ファイル | 提案 |
-| [07-declarative.md](07-declarative.md) | export / diff / apply | 構想 |
-| [08-quality-release.md](08-quality-release.md) | テスト・配布・互換性・セキュリティ | 提案 |
-| [09-roadmap.md](09-roadmap.md) | マイルストーン | 提案 |
-| [10-triage.md](10-triage.md) | 障害対応の最初の 1 コマンド `mcrl triage` | 提案 |
-| [extensions.md](extensions.md) | 拡張の仕組み・管理コマンド・作り方 | 実装済み |
-| [decisions.md](decisions.md) | 決定事項と未決事項の台帳 | 随時更新 |
-| [repository-settings.md](repository-settings.md) | GitHub と Claude Code の設定（App、ルールセット、auto-merge など） | 随時更新 |
-| [api-notes.md](api-notes.md) | Mackerel API の調査メモ（制約・不揃い・ドキュメントの穴） | 随時更新 |
+| Guide | Contents |
+|---|---|
+| [Using mcrl](usage.md) | Command grammar, naming resources, stdin, times, output and `--jq`, creating and updating, confirmation, errors and exit codes, completion |
+| [Configuration and authentication](configuration.md) | Logging in, profiles, pinning a profile per directory, where the API key comes from, environment variables, files |
+| [Password managers and secret stores](secret-managers.md) | `api_key_command` and environment variables with 1Password, Vault, cloud secret stores and others; containers |
+| [AI agents (MCP)](ai-agents.md) | Running `mcrl mcp` for Claude Code and other MCP clients, what is exposed, the API key |
+| [Extensions](extensions.md) | Installing, upgrading and writing `mcrl-<name>` extensions |
+| [Command reference](reference/README.md) | Every command with its flags, examples, API endpoints and permission; which command calls each API endpoint. Generated from `--help` |
 
-## 参照してよい資料
+Everything here is also in `mcrl <command> --help`, `mcrl help environment` and `mcrl help exit-codes`.
 
-- Mackerel API ドキュメント: https://mackerel.io/api-docs/
-- Mackerel ヘルプ: https://mackerel.io/ja/docs/
+## Design documents
 
-**既存の Mackerel CLI（mkr）のソースコード・ドキュメントは参照しない**（[decisions.md](decisions.md) D1）。
+The design documents and decision log (in Japanese) are in [design/](design/README.md). They describe why mcrl works the way it does, and include ideas that are not implemented yet; these guides describe what mcrl does today.
