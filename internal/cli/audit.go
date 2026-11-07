@@ -138,6 +138,9 @@ type auditHost struct {
 	IsRetired bool                `json:"isRetired"`
 	RetiredAt *int64              `json:"retiredAt"`
 	Roles     map[string][]string `json:"roles"`
+	Meta      struct {
+		CPU []json.RawMessage `json:"cpu"`
+	} `json:"meta"`
 }
 
 func (a *auditor) hosts() ([]auditHost, error) { return decodeList[auditHost](a, "/hosts", "hosts") }
@@ -161,13 +164,29 @@ func (a *auditor) latestMetrics() (map[string]int64, error) {
 	if err != nil {
 		return nil, err
 	}
+	ids := make([]string, len(hosts))
+	for i, h := range hosts {
+		ids[i] = h.ID
+	}
+	latest, err := latestMetricTimes(a.ctx, a.c, ids)
+	if err != nil {
+		return nil, err
+	}
+	a.latest = latest
+	return latest, nil
+}
+
+// latestMetricTimes returns when each host last sent any of
+// auditProbeMetrics (GET /tsdb/latest). Hosts that sent none are missing
+// from the map. mcrl audit and mcrl triage judge stopped hosts with it.
+func latestMetricTimes(ctx context.Context, c *mackerel.Client, hostIDs []string) (map[string]int64, error) {
 	latest := map[string]int64{}
-	for chunk := range slices.Chunk(hosts, auditLatestChunk) {
+	for chunk := range slices.Chunk(hostIDs, auditLatestChunk) {
 		q := url.Values{"name": auditProbeMetrics}
-		for _, h := range chunk {
-			q.Add("hostId", h.ID)
+		for _, id := range chunk {
+			q.Add("hostId", id)
 		}
-		b, err := a.c.Get(a.ctx, "/tsdb/latest", q)
+		b, err := c.Get(ctx, "/tsdb/latest", q)
 		if err != nil {
 			return nil, err
 		}
@@ -187,7 +206,6 @@ func (a *auditor) latestMetrics() (map[string]int64, error) {
 			}
 		}
 	}
-	a.latest = latest
 	return latest, nil
 }
 
@@ -491,22 +509,19 @@ func (a *auditor) alertsOnRetiredHosts() ([]auditFinding, error) {
 		// 一覧にないホストは退役済みか削除済み。ホストごとに 1 回だけ取る
 		h, seen := a.retired[al.HostID]
 		if !seen {
-			b, err := a.c.Get(a.ctx, "/hosts/"+url.PathEscape(al.HostID), nil)
-			var nf *mackerel.NotFoundError
-			switch {
-			case err == nil:
+			raw, err := hostByID(a.ctx, a.c, al.HostID)
+			if err != nil {
+				return nil, err
+			}
+			if raw != nil {
 				var v auditHost
-				if json.Unmarshal(mackerel.UnwrapIf(b, "host"), &v) == nil {
+				if json.Unmarshal(raw, &v) == nil {
 					h = &v
 				}
-			case errors.As(mackerel.AsNotFound(err, "host", al.HostID), &nf):
-				// 取れないホスト（削除済み）も退役済みとして扱う
-			default:
-				return nil, err
 			}
 			a.retired[al.HostID] = h
 		}
-		if h != nil && !h.IsRetired {
+		if !hostRetired(h) {
 			continue
 		}
 		details := map[string]any{"alertStatus": al.Status, "monitorId": al.MonitorID, "hostId": al.HostID, "openedAt": al.OpenedAt}
@@ -526,6 +541,25 @@ func (a *auditor) alertsOnRetiredHosts() ([]auditFinding, error) {
 	}
 	return out, nil
 }
+
+// hostByID gets a host with GET /hosts/<id>, which also returns retired
+// hosts. A host that no longer exists (deleted) returns nil and no error.
+func hostByID(ctx context.Context, c *mackerel.Client, id string) (json.RawMessage, error) {
+	b, err := c.Get(ctx, "/hosts/"+url.PathEscape(id), nil)
+	if err != nil {
+		var nf *mackerel.NotFoundError
+		if errors.As(mackerel.AsNotFound(err, "host", id), &nf) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return mackerel.UnwrapIf(b, "host"), nil
+}
+
+// hostRetired reports whether a host fetched by ID (hostByID) is retired.
+// A host that could not be fetched (nil, deleted) counts as retired. mcrl
+// audit (alert-on-retired-host) and mcrl triage (host-retired) share it.
+func hostRetired(h *auditHost) bool { return h == nil || h.IsRetired }
 
 // hostRoles counts the hosts of each service and "service:role".
 func (a *auditor) hostRoles() (map[string]int, map[string]int, error) {

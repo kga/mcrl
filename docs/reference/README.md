@@ -49,6 +49,7 @@ Global flags:
 | [`role`](role.md) | Manage roles |
 | [`service`](service.md) | Manage services |
 | [`trace`](trace.md) | Search traces |
+| [`triage`](triage.md) | Gather the context of open alerts, for the first minutes of an incident |
 | [`user`](user.md) | Manage organization members |
 
 ## Setup commands

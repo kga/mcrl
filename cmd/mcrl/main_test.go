@@ -211,6 +211,11 @@ func newFakeAPI(logPath string) http.Handler {
 			if serveAuditFixture(w, r) {
 				return
 			}
+		case "triage-key":
+			// mcrl triage のテスト用の組織（triage_fake_test.go）
+			if serveTriageFixture(w, r, reqBody) {
+				return
+			}
 		default:
 			writeJSON(w, 401, `{"error":{"message":"Authentication failed. Please try with valid Api Key."}}`)
 			return

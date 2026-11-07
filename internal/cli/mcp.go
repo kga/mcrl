@@ -53,6 +53,7 @@ type mcpArg struct {
 	name     string // property name
 	use      string // as written in Use, e.g. "<host>"
 	variadic bool
+	optional bool // may be left out
 }
 
 // mcpTools lists every command exposed over MCP. Commands that are not here
@@ -102,6 +103,7 @@ var mcpTools = []mcpToolSpec{
 	{path: "aws get"},
 	{path: "aws excludable-metrics"},
 	{path: "audit", hide: []string{"fail-on", "now"}},
+	{path: "triage", hide: []string{"now"}, args: &mcpArg{name: "alert_ids", use: "<alert-id>", variadic: true, optional: true}},
 	{
 		path: "api", fixed: []string{"--method=GET"}, hide: []string{"method", "file", "header", "include"},
 		note: "Over MCP, only GET requests can be sent.",
@@ -380,10 +382,16 @@ func buildMCPTool(root *cobra.Command, spec mcpToolSpec) (*mcpTool, error) {
 			s = &jsonschema.Schema{Type: "array", Items: &jsonschema.Schema{Type: "string"}, MinItems: jsonschema.Ptr(1),
 				Description: "positional arguments " + a.use + "... (one or more)"}
 		}
+		if a.optional {
+			s.MinItems = nil
+			s.Description = strings.Replace(s.Description, "(one or more)", "(optional)", 1)
+		}
 		if err := add(a.name, s); err != nil {
 			return nil, err
 		}
-		schema.Required = append(schema.Required, a.name)
+		if !a.optional {
+			schema.Required = append(schema.Required, a.name)
+		}
 	}
 
 	var flagErr error
@@ -521,6 +529,7 @@ func (t *mcpTool) commandLine(in map[string]any) (argv []string, stdin []byte, e
 	argv = append(argv, "--")
 	for _, a := range t.args {
 		switch v := in[a.name].(type) {
+		case nil:
 		case []any:
 			for _, e := range v {
 				argv = append(argv, mcpScalar(e))
