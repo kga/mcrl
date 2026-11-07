@@ -108,7 +108,11 @@ config file instead (file mode 0600).`,
 			if baseURL != "" {
 				p.BaseURL = baseURL
 			}
+			// キーチェーンの元の状態。設定ファイルの保存に失敗したら戻し、
+			// 平文で保存したら古いキー（平文より優先される）を消すのに使う
+			prev, prevErr := f.Keyring.Get(credential.KeyringService, name)
 			storage := string(credential.SourceKeyring)
+			inKeyring := false
 			if insecure {
 				p.APIKey = key
 				storage = string(credential.SourceFile)
@@ -123,12 +127,27 @@ config file instead (file mode 0600).`,
 				storage = string(credential.SourceFile)
 			} else {
 				p.APIKey = "" // キーチェーンに入れたら平文の古いキーは消す
+				inKeyring = true
 			}
 			if cfg.DefaultProfile == "" {
 				cfg.DefaultProfile = name
 			}
 			if err := f.SaveConfig(); err != nil {
+				err = fmt.Errorf("saving the config file: %w", err)
+				if inKeyring {
+					if rerr := restoreKeyring(f.Keyring, name, prev, prevErr); rerr != nil {
+						return cmdutil.WithHint(err, fmt.Sprintf(
+							"the new key is left in the OS keychain (restoring the previous state failed: %v); run `mcrl auth logout --profile %s` to remove it", rerr, name))
+					}
+				}
 				return err
+			}
+			if !inKeyring && prevErr == nil {
+				// キーチェーンのキーは平文より優先されるので、古いものが残ると新しいキーが使われない
+				if err := f.Keyring.Delete(credential.KeyringService, name); err != nil && !errors.Is(err, keyring.ErrNotFound) {
+					return cmdutil.WithHint(fmt.Errorf("removing the previous key from the OS keychain: %w", err),
+						"the new key is saved in the config file, but the previous key in the OS keychain takes precedence over it")
+				}
 			}
 			if f.Getenv(credential.EnvVar) != "" {
 				f.IO.Warnf("%s is set and takes precedence over the stored key", credential.EnvVar)
@@ -149,6 +168,22 @@ config file instead (file mode 0600).`,
 	cmd.Flags().StringVar(&baseURL, "base-url", "", "API base URL to save in the profile (e.g. https://kcps-mackerel.io)")
 	cmd.Flags().BoolVar(&insecure, "insecure-storage", false, "store the key in plaintext in the config file")
 	return cmd
+}
+
+// restoreKeyring puts the keychain entry of a profile back to what Get returned
+// before it was overwritten: the previous key, or no entry.
+func restoreKeyring(kr credential.Keyring, name, prev string, prevErr error) error {
+	switch {
+	case prevErr == nil:
+		return kr.Set(credential.KeyringService, name, prev)
+	case errors.Is(prevErr, keyring.ErrNotFound):
+		if err := kr.Delete(credential.KeyringService, name); err != nil && !errors.Is(err, keyring.ErrNotFound) {
+			return err
+		}
+		return nil
+	default:
+		return fmt.Errorf("the previous state is unknown: %w", prevErr)
+	}
 }
 
 func readAPIKey(f *cmdutil.Factory, fromStdin bool) (string, error) {
@@ -192,18 +227,30 @@ func newAuthLogoutCmd(f *cmdutil.Factory) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			removed := []string{}
-			if err := f.Keyring.Delete(credential.KeyringService, name); err == nil {
-				removed = append(removed, string(credential.SourceKeyring))
-			} else if !errors.Is(err, keyring.ErrNotFound) {
-				f.IO.Warnf("could not remove the key from the OS keychain: %v", err)
+			// キーチェーンにキーがあるかを先に確かめる。読めないとき（キーチェーンが
+			// 使えない環境）は、そこには保存されていないとみなす
+			_, getErr := f.Keyring.Get(credential.KeyringService, name)
+			if getErr != nil && !errors.Is(getErr, keyring.ErrNotFound) {
+				f.IO.Warnf("could not read the OS keychain: %v", getErr)
 			}
+			removed := []string{}
+			// 平文のキーを先に消す。保存に失敗したら何も変わっていない
 			if cfg.HasProfile(name) && cfg.Profile(name).APIKey != "" {
 				cfg.Profile(name).APIKey = ""
 				if err := f.SaveConfig(); err != nil {
-					return err
+					return fmt.Errorf("removing the key from the config file: %w", err)
 				}
 				removed = append(removed, string(credential.SourceFile))
+			}
+			if getErr == nil {
+				if err := f.Keyring.Delete(credential.KeyringService, name); err != nil && !errors.Is(err, keyring.ErrNotFound) {
+					hint := "the key is still in the OS keychain; run `mcrl auth logout` again"
+					if len(removed) > 0 {
+						hint = "the key was removed from the config file but is still in the OS keychain; run `mcrl auth logout` again"
+					}
+					return cmdutil.WithHint(fmt.Errorf("removing the key from the OS keychain: %w", err), hint)
+				}
+				removed = append(removed, string(credential.SourceKeyring))
 			}
 			if f.Getenv(credential.EnvVar) != "" {
 				f.IO.Warnf("%s is still set in the environment", credential.EnvVar)

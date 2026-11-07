@@ -1,0 +1,58 @@
+# auth login / logout が途中で失敗しても、保存されたキーの状態が食い違わない
+
+stdin good-key.txt
+exec mcrl auth login --with-token
+
+# 設定ファイルを保存できないとき（一時ファイルの場所をディレクトリでふさぐ）、
+# キーチェーンは元のキーに戻る
+mkdir $HOME/.config/mcrl/config.toml.tmp
+stdin other-key.txt
+! exec mcrl auth login --with-token
+stderr 'saving the config file'
+exec mcrl auth token
+stdout '^good-key$'
+
+# 新しいプロファイルなら、キーチェーンにエントリを残さない
+stdin other-key.txt
+! exec mcrl auth login --profile third --with-token
+stderr 'saving the config file'
+! grep 'mcrl/third' $WORK/keyring.json
+
+# logout も、設定ファイルを保存できなければ何も消さない
+rm $HOME/.config/mcrl/config.toml.tmp
+stdin good-key.txt
+exec mcrl auth login --profile plain --with-token --insecure-storage
+mkdir $HOME/.config/mcrl/config.toml.tmp
+! exec mcrl auth logout --profile plain
+stderr 'removing the key from the config file'
+grep 'api_key = .good-key.' $HOME/.config/mcrl/config.toml
+rm $HOME/.config/mcrl/config.toml.tmp
+
+# キーチェーンから消せなければ、終了コードとヒントで知らせる（以前は警告だけで成功していた）
+env MCRL_TEST_KEYRING_READONLY=1
+! exec mcrl auth logout
+stderr 'removing the key from the OS keychain'
+stderr 'still in the OS keychain'
+env MCRL_TEST_KEYRING_READONLY=
+exec mcrl auth token
+stdout '^good-key$'
+
+# 平文で保存し直すと、キーチェーンの古いキー（平文より優先される）を消す
+stdin other-key.txt
+exec mcrl auth login --insecure-storage --with-token
+stdout '"storage":"config:api_key"'
+! grep 'mcrl/default' $WORK/keyring.json
+exec mcrl api /org
+stdout other-org
+
+# キーチェーンが使えない環境でも、平文のキーは logout で消せる
+env MCRL_TEST_KEYRING=
+exec mcrl auth logout
+stdout '"removed":\["config:api_key"\]'
+stderr 'could not read the OS keychain'
+! grep 'api_key = .other-key.' $HOME/.config/mcrl/config.toml
+
+-- good-key.txt --
+good-key
+-- other-key.txt --
+other-key
