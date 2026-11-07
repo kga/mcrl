@@ -25,6 +25,9 @@ func WithTransport(t http.RoundTripper) Option {
 	return func(f *cmdutil.Factory) { f.Transport = t }
 }
 
+// WithExecutable sets the mcrl binary that extensions call (MCRL_BIN).
+func WithExecutable(path string) Option { return func(f *cmdutil.Factory) { f.Executable = path } }
+
 // Main runs mcrl and returns the exit code.
 func Main(ctx context.Context, args []string, io *cmdutil.IOStreams, opts ...Option) int {
 	f := &cmdutil.Factory{
@@ -36,6 +39,10 @@ func Main(ctx context.Context, args []string, io *cmdutil.IOStreams, opts ...Opt
 		o(f)
 	}
 	root := NewRootCmd(f)
+	if code, ok := runExtension(f, root, args); ok {
+		return code
+	}
+	addExtensionCommands(f, root, args)
 	root.SetArgs(args)
 	err := root.ExecuteContext(ctx)
 	if err != nil && ctx.Err() != nil {
@@ -95,7 +102,7 @@ Use --jq to filter it. Errors go to stderr and are reflected in the exit code
 		c.GroupID = "core"
 		root.AddCommand(c)
 	}
-	for _, c := range []*cobra.Command{newAuthCmd(f), newConfigCmd(f), newDoctorCmd(f), newVersionCmd(f)} {
+	for _, c := range []*cobra.Command{newAuthCmd(f), newConfigCmd(f), newDoctorCmd(f), newExtensionCmd(f), newVersionCmd(f)} {
 		c.GroupID = "setup"
 		root.AddCommand(c)
 	}
