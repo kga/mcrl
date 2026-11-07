@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -28,11 +29,34 @@ func TestMain(m *testing.M) {
 		"mcrl": func() {
 			// テストでは本物のキーチェーンに触れない
 			kr := fileKeyring(os.Getenv("MCRL_TEST_KEYRING"))
-			code := cli.Main(context.Background(), os.Args[1:], cmdutil.System(), cli.WithKeyring(kr))
+			// os.Executable はテストバイナリそのものを指すので、拡張には PATH 上の mcrl を渡す
+			bin, _ := exec.LookPath("mcrl")
+			bin, _ = filepath.Abs(bin)
+			code := cli.Main(context.Background(), os.Args[1:], cmdutil.System(), cli.WithKeyring(kr), cli.WithExecutable(bin))
 			// 終了コードはファイルに残し、スクリプトから grep で確かめる（sh -c は Windows でパスを書き換えるため使わない）
 			if p := os.Getenv("MCRL_TEST_EXIT_FILE"); p != "" {
 				_ = os.WriteFile(p, []byte(strconv.Itoa(code)+"\n"), 0o600)
 			}
+			os.Exit(code)
+		},
+		// PATH 上の拡張 "mcrl testext": 受け取った引数・標準入力・環境変数を JSON で出し、
+		// TESTEXT_EXIT の終了コードで終わる。"run-mcrl ..." なら $MCRL_BIN を呼ぶ
+		"mcrl-testext": func() {
+			args := os.Args[1:]
+			if len(args) > 0 && args[0] == "run-mcrl" {
+				cmd := exec.Command(os.Getenv("MCRL_BIN"), args[1:]...)
+				cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
+				_ = cmd.Run()
+				os.Exit(cmd.ProcessState.ExitCode())
+			}
+			stdin, _ := io.ReadAll(os.Stdin)
+			env := map[string]string{}
+			for _, kv := range os.Environ() {
+				k, v, _ := strings.Cut(kv, "=")
+				env[k] = v
+			}
+			_ = json.NewEncoder(os.Stdout).Encode(map[string]any{"args": args, "stdin": string(stdin), "env": env})
+			code, _ := strconv.Atoi(os.Getenv("TESTEXT_EXIT"))
 			os.Exit(code)
 		},
 		// edit のテスト用エディタ: FAKE_EDIT_FROM を FAKE_EDIT_TO に置き換えて保存する
@@ -70,6 +94,12 @@ func TestScript(t *testing.T) {
 			env.Setenv("MCRL_TEST_KEYRING", filepath.Join(env.WorkDir, "keyring.json"))
 			env.Setenv("SERVER", srv.URL)
 			env.Setenv("MCRL_TEST_EXIT_FILE", filepath.Join(env.WorkDir, "exitcode"))
+			env.Setenv("XDG_DATA_HOME", "")
+			examples, err := filepath.Abs(filepath.Join("..", "..", "examples"))
+			if err != nil {
+				return err
+			}
+			env.Setenv("EXAMPLES", examples)
 			return nil
 		},
 	})

@@ -1,0 +1,60 @@
+# git のリポジトリから入れる。インストールしたコミットを記録し、upgrade するまで動かさない
+[windows] skip
+[!exec:git] skip
+
+env GIT_AUTHOR_NAME=test GIT_AUTHOR_EMAIL=test@example.com GIT_COMMITTER_NAME=test GIT_COMMITTER_EMAIL=test@example.com
+env GIT_CONFIG_GLOBAL=$WORK/gitconfig GIT_CONFIG_NOSYSTEM=1
+chmod 755 mcrl-drill/mcrl-drill
+exec git -C mcrl-drill init -q -b main
+exec git -C mcrl-drill add .
+exec git -C mcrl-drill commit -q -m first
+exec git -C mcrl-drill rev-parse HEAD
+cp stdout first.txt
+
+exec mcrl extension install file://$WORK/mcrl-drill
+stdout '"source":"git"'
+stdout '"url":"file://'
+exec mcrl extension list --jq '.[] | select(.name == "drill") | .commit'
+cmp stdout first.txt
+exec mcrl drill
+stdout '^v1$'
+
+# リポジトリが進んでも、upgrade するまで入れたコミットのまま
+cp v2.sh mcrl-drill/mcrl-drill
+exec git -C mcrl-drill commit -q -am second
+exec mcrl drill
+stdout '^v1$'
+
+exec mcrl --dry-run extension upgrade drill
+stdout '"upgraded":false'
+stdout '"dryRun":true'
+exec mcrl drill
+stdout '^v1$'
+
+exec mcrl extension upgrade drill
+stdout '"upgraded":true'
+exec mcrl drill
+stdout '^v2$'
+exec mcrl extension upgrade drill
+stdout '"upgraded":false'
+
+exec mcrl extension remove drill
+! exists $HOME/.local/share/mcrl/extensions/mcrl-drill
+
+# 実行ファイルのないリポジトリは入れない
+exec git -C mcrl-bad init -q -b main
+exec git -C mcrl-bad add .
+exec git -C mcrl-bad commit -q -m first
+! exec mcrl extension install file://$WORK/mcrl-bad
+stderr 'no executable mcrl-bad'
+! exists $HOME/.local/share/mcrl/extensions/mcrl-bad
+
+-- gitconfig --
+-- mcrl-drill/mcrl-drill --
+#!/bin/sh
+echo v1
+-- v2.sh --
+#!/bin/sh
+echo v2
+-- mcrl-bad/README --
+no executable

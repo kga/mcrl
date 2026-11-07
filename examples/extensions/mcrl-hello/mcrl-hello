@@ -1,0 +1,20 @@
+#!/bin/sh
+# mcrl-hello: the smallest useful mcrl extension.
+#
+# mcrl runs it as "mcrl hello". It never sees the API key: it calls mcrl
+# ($MCRL_BIN), which resolves the key for the profile in $MCRL_PROFILE and
+# prints JSON like any other mcrl command.
+#
+# Install it while developing (the directory is linked, not copied):
+#   mcrl extension install ./examples/extensions/mcrl-hello
+set -eu
+
+case "${1:-}" in
+-h | --help)
+	echo "Usage: mcrl hello"
+	echo "Greet the organization the current profile points to."
+	exit 0
+	;;
+esac
+
+exec "$MCRL_BIN" org get --jq '{greeting: "Hello, \(.name)!"}'

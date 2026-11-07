@@ -40,6 +40,7 @@ mcrl
 ├── mcp         MCP サーバー（AI エージェントにコマンドをツールとして公開）
 ├── open        Web コンソールを開く（未実装）
 ├── doctor      設定・接続・権限の診断
+├── extension   list / install / upgrade / remove（mcrl <name> で mcrl-<name> を実行）
 ├── completion  bash / zsh / fish / powershell
 └── version
 ```
@@ -200,10 +201,21 @@ mcrl audit --fail-on warning -o jsonl > audit.jsonl
 claude mcp add mcrl -- mcrl mcp
 ```
 
-## 拡張（未実装）
+## 拡張
 
-`PATH` 上の `mcrl-<name>` を `mcrl <name>` として実行できるようにする。
-子プロセスには解決済みの `MACKEREL_APIKEY` と `MCRL_API_BASE` を渡し、プロファイル解決を再実装しなくて済むようにする。
+- `mcrl <name>` が本体のコマンドでなければ、拡張ディレクトリ → `PATH` の順で `mcrl-<name>` を探して実行する。引数・標準入出力・終了コードはそのまま受け渡す。本体に入れない機能（通知の避難訓練、しきい値の過去検証など）を外で作れるように（[decisions.md](decisions.md) D23）
+- 本体のコマンド・別名が常に優先する。拡張で本体を乗っ取れないように
+- 拡張には `MCRL_BIN`（本体の絶対パス）・`MCRL_PROFILE`・`MCRL_API_BASE` を渡し、**API キーは渡さない**。拡張は `"$MCRL_BIN" api ...` のように本体を呼び、キーの解決は本体に任せる。当初は解決済みのキーを渡す案だったが、他人のコードと孫プロセスにキーが漏れやすいのでやめた
+- 名前の前に置けるグローバルフラグは環境変数で拡張に渡せるもの（`--profile`・`--output`・`--color`・`--debug`・`--no-input`）だけ。ほかは意味が拡張ごとに違いうるので、名前の後ろに書く
+- `extension install` は git で clone し、インストールしたコミットを出力する。勝手に更新せず、`extension upgrade`（`--dry-run` で先に確かめられる）でだけ動かす。ローカルのディレクトリはリンクで入れ、開発中の変更がすぐ効くように
+- `mcrl --help` と補完に「Extension commands:」として本体と分けて出す。MCP サーバーには公開しない
+
+仕組みと作り方は [extensions.md](extensions.md)。
+
+```sh
+mcrl extension install someone/mcrl-drill
+mcrl extension upgrade drill --dry-run
+```
 
 ## API の制約・不揃い
 

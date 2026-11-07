@@ -40,6 +40,7 @@ func newHelpTopics() []*cobra.Command {
   NO_COLOR          disable colors when set
   MCRL_NO_INPUT     never prompt when set
   MCRL_DEBUG        log HTTP requests and responses to stderr
+  MCRL_EXTENSIONS_DIR  directory of installed extensions
   HTTPS_PROXY, NO_PROXY  proxy settings`),
 	}
 }

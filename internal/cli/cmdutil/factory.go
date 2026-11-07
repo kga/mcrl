@@ -23,6 +23,9 @@ type Factory struct {
 	Getenv    config.Env
 	Keyring   credential.Keyring
 	Transport http.RoundTripper
+	// Executable is the mcrl binary passed to extensions as MCRL_BIN.
+	// Empty means os.Executable.
+	Executable string
 
 	// Global flags.
 	Profile string

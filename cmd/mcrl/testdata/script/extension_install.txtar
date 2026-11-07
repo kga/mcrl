@@ -1,0 +1,65 @@
+# ローカルのディレクトリから入れる拡張はシェルスクリプトなので Unix だけで確かめる
+[windows] skip
+
+# サンプル拡張をリンクで入れる（XDG_DATA_HOME がなければ ~/.local/share/mcrl/extensions）
+exec mcrl extension install $EXAMPLES/extensions/mcrl-hello
+stdout '"name":"hello"'
+stdout '"source":"local"'
+exists $HOME/.local/share/mcrl/extensions/mcrl-hello/mcrl-hello
+
+env MACKEREL_APIKEY=good-key
+exec mcrl hello
+stdout '"greeting":"Hello, test-org!"'
+exec mcrl hello --help
+stdout 'Usage: mcrl hello'
+
+exec mcrl extension list --jq '.[] | select(.name == "hello") | .source'
+stdout '^local$'
+
+# 同じ名前は二重に入れない。本体のコマンドと同じ名前の拡張は入れない
+! exec mcrl extension install $EXAMPLES/extensions/mcrl-hello
+grep '^5$' $WORK/exitcode
+stderr 'already installed'
+chmod 755 mcrl-host/mcrl-host
+! exec mcrl extension install mcrl-host
+stderr 'built-in command'
+
+# 実行できるファイルがないディレクトリは入れない
+! exec mcrl extension install mcrl-empty
+stderr 'no executable'
+
+# リンクした拡張は upgrade できない。remove はリンクだけを消す
+! exec mcrl extension upgrade hello
+stderr 'linked from'
+exec mcrl extension remove hello
+stdout '"name":"hello"'
+! exists $HOME/.local/share/mcrl/extensions/mcrl-hello
+exists $EXAMPLES/extensions/mcrl-hello/mcrl-hello
+! exec mcrl hello
+stderr 'unknown command'
+
+# MCRL_EXTENSIONS_DIR で置き場所を変えられる。終了コードと stdin を受け渡す
+env MCRL_EXTENSIONS_DIR=$WORK/exts
+chmod 755 mcrl-echo/mcrl-echo
+exec mcrl extension install mcrl-echo
+exists $WORK/exts/mcrl-echo
+stdin input.txt
+! exec mcrl echo one 'two words'
+grep '^3$' $WORK/exitcode
+stdout '^arg: one$'
+stdout '^arg: two words$'
+stdout '^stdin: hello$'
+
+-- mcrl-host/mcrl-host --
+#!/bin/sh
+echo should not run
+-- mcrl-empty/README --
+nothing to run
+-- mcrl-echo/mcrl-echo --
+#!/bin/sh
+for a in "$@"; do echo "arg: $a"; done
+read -r line
+echo "stdin: $line"
+exit 3
+-- input.txt --
+hello
