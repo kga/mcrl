@@ -14,6 +14,7 @@ Mackerel API のための新しい CLI「mcrl」の設計資料。
 | [07-declarative.md](07-declarative.md) | export / diff / apply | 構想 |
 | [08-quality-release.md](08-quality-release.md) | テスト・配布・互換性・セキュリティ | 提案 |
 | [09-roadmap.md](09-roadmap.md) | マイルストーン | 提案 |
+| [10-triage.md](10-triage.md) | 障害対応の最初の 1 コマンド `mcrl triage` | 提案 |
 | [extensions.md](extensions.md) | 拡張の仕組み・管理コマンド・作り方 | 実装済み |
 | [decisions.md](decisions.md) | 決定事項と未決事項の台帳 | 随時更新 |
 | [repository-settings.md](repository-settings.md) | GitHub と Claude Code の設定（App、ルールセット、auto-merge など） | 随時更新 |
