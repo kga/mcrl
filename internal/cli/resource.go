@@ -59,9 +59,56 @@ func printRaw(f *cmdutil.Factory, b []byte) error {
 	return p.PrintRaw(b)
 }
 
+const (
+	apiLinePrefix  = "API: "
+	permLinePrefix = "API key permission: "
+)
+
 // withAPI appends the endpoints and the API key permission to a help text.
+//
+// Each endpoint is "METHOD /api/v0/path". Placeholders are written as <id>,
+// "{a,b}" stands for several paths, and a note may follow in parentheses
+// ("GET /api/v0/monitors (--expand)"). The endpoints are read back by
+// apiOf, which the endpoint coverage test and docs/reference use, so the
+// help text is the only place a command declares the API it calls
+// (docs/decisions.md D21).
 func withAPI(long, permission string, endpoints ...string) string {
-	return strings.TrimSpace(long) + "\n\nAPI: " + strings.Join(endpoints, ", ") + "\nAPI key permission: " + permission
+	return strings.TrimSpace(long) + "\n\n" + apiLinePrefix + strings.Join(endpoints, ", ") + "\n" + permLinePrefix + permission
+}
+
+// apiOf reads back the endpoints and the permission that withAPI wrote into
+// a help text, with "{a,b}" expanded and notes removed. A help text without
+// them returns nothing.
+func apiOf(long string) (endpoints []string, permission string) {
+	for line := range strings.SplitSeq(long, "\n") {
+		if s, ok := strings.CutPrefix(line, apiLinePrefix); ok {
+			endpoints = nil
+			for ep := range strings.SplitSeq(s, ", ") {
+				if i := strings.Index(ep, " ("); i >= 0 {
+					ep = ep[:i]
+				}
+				endpoints = append(endpoints, expandBraces(ep)...)
+			}
+		}
+		if s, ok := strings.CutPrefix(line, permLinePrefix); ok {
+			permission = s
+		}
+	}
+	return endpoints, permission
+}
+
+// expandBraces expands "a{b,c}d" into "abd" and "acd".
+func expandBraces(s string) []string {
+	i := strings.IndexByte(s, '{')
+	j := strings.IndexByte(s, '}')
+	if i < 0 || j < i {
+		return []string{s}
+	}
+	var out []string
+	for alt := range strings.SplitSeq(s[i+1:j], ",") {
+		out = append(out, expandBraces(s[:i]+alt+s[j+1:])...)
+	}
+	return out
 }
 
 // listCmd builds "<resource> list" for an endpoint that returns {key: [...]}.

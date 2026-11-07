@@ -19,6 +19,9 @@ import (
 
 const maxMetadataBytes = 100 * 1024
 
+// metadataBases is the part of the metadata paths that names the target, for help texts.
+const metadataBases = "{hosts/<id>,services/<name>,services/<name>/roles/<role>}"
+
 // metadataTarget is the --host / --service / --role triple.
 type metadataTarget struct{ host, service, role string }
 
@@ -70,7 +73,7 @@ func newMetadataCmd(f *cmdutil.Factory) *cobra.Command {
 		Use:     "list (--host <host> | --service <service> | --role <service:role>)",
 		Aliases: []string{"ls"},
 		Short:   "List metadata namespaces",
-		Long:    withAPI(`List the metadata namespaces of a host, service or role as [{"namespace": ...}].`, "Read", "GET /api/v0/{hosts/<id>,services/<name>,services/<name>/roles/<role>}/metadata"),
+		Long:    withAPI(`List the metadata namespaces of a host, service or role as [{"namespace": ...}].`, "Read", "GET /api/v0/"+metadataBases+"/metadata"),
 		Example: "  mcrl metadata list --host web-1\n  mcrl metadata list --role web:app --jq '.[].namespace'",
 		Args:    cmdutil.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -94,7 +97,7 @@ func newMetadataCmd(f *cmdutil.Factory) *cobra.Command {
 	get := &cobra.Command{
 		Use:     "get <namespace> (--host <host> | --service <service> | --role <service:role>)",
 		Short:   "Show a metadata value",
-		Long:    withAPI("Show a metadata value: the JSON stored under the namespace, as is.", "Read", "GET /api/v0/.../metadata/<namespace>"),
+		Long:    withAPI("Show a metadata value: the JSON stored under the namespace, as is.", "Read", "GET /api/v0/"+metadataBases+"/metadata/<namespace>"),
 		Example: "  mcrl metadata get inventory --host web-1\n  mcrl metadata get deploy --service web --jq .version",
 		Args:    cmdutil.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -120,7 +123,7 @@ func newMetadataCmd(f *cmdutil.Factory) *cobra.Command {
 		Use:   "set <namespace> -f <file> (--host <host> | --service <service> | --role <service:role>)",
 		Short: "Create or replace a metadata value",
 		Long: withAPI(`Create or replace a metadata value with any JSON (or YAML) value up to 100KB.
-Limits: 50 namespaces per host or service, 10 per role.`, "Read, Write", "PUT /api/v0/.../metadata/<namespace>"),
+Limits: 50 namespaces per host or service, 10 per role.`, "Read, Write", "PUT /api/v0/"+metadataBases+"/metadata/<namespace>"),
 		Example: `  mcrl metadata set inventory --host web-1 -f inventory.json
   echo '{"version": "1.2.3"}' | mcrl metadata set deploy --service web -f -`,
 		Args: cmdutil.ExactArgs(1),
@@ -168,7 +171,7 @@ Limits: 50 namespaces per host or service, 10 per role.`, "Read, Write", "PUT /a
 		Use:     "delete <namespace> (--host <host> | --service <service> | --role <service:role>)",
 		Aliases: []string{"rm"},
 		Short:   "Delete a metadata value",
-		Long:    withAPI("Delete a metadata value.", "Read, Write", "DELETE /api/v0/.../metadata/<namespace>"),
+		Long:    withAPI("Delete a metadata value.", "Read, Write", "DELETE /api/v0/"+metadataBases+"/metadata/<namespace>"),
 		Example: "  mcrl metadata delete inventory --host web-1\n  mcrl metadata delete deploy --service web --yes",
 		Args:    cmdutil.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
