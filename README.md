@@ -1,3 +1,6 @@
+> [!NOTE]
+> mcrl is a proof of concept: a reimplementation of a command-line client for the Mackerel API, made to explore what such a tool could look like. It is not an official Mackerel product.
+
 # mcrl
 
 A command-line client for the [Mackerel](https://mackerel.io/) API.
