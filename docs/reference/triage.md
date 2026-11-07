@@ -81,7 +81,7 @@ API key permission: Read
 
 Examples:
   mcrl triage
-  mcrl triage 5VhFXR2a8mC
+  mcrl triage exampleAlr1
   mcrl triage --service web --status critical
   mcrl triage --host web-3 --window 30m --skip annotations
   mcrl triage --otel-service checkout-api,payment

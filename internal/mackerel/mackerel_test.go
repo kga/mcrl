@@ -23,7 +23,7 @@ func newClient(t *testing.T, h http.HandlerFunc) *Client {
 }
 
 func TestIsID(t *testing.T) {
-	for s, want := range map[string]bool{"5Vf7Be7guuy": true, "5Vf7Be7guu": false, "web-server1": false, "abcdefghijk": true} {
+	for s, want := range map[string]bool{"exampleHst1": true, "exampleHst": false, "web-server1": false, "abcdefghijk": true} {
 		if IsID(s) != want {
 			t.Errorf("IsID(%q) = %v", s, !want)
 		}
@@ -90,15 +90,15 @@ func TestResolve(t *testing.T) {
 func TestResolveHost(t *testing.T) {
 	c := newClient(t, func(w http.ResponseWriter, r *http.Request) {
 		switch {
-		case r.URL.Path == "/api/v0/hosts/5Vf7Be7guuy":
-			io.WriteString(w, `{"host":{"id":"5Vf7Be7guuy","name":"web-1"}}`)
+		case r.URL.Path == "/api/v0/hosts/exampleHst1":
+			io.WriteString(w, `{"host":{"id":"exampleHst1","name":"web-1"}}`)
 		case r.URL.Path == "/api/v0/hosts":
 			if got := r.URL.Query()["status"]; len(got) != 4 {
 				t.Errorf("status = %v, want all statuses", got)
 			}
 			switch r.URL.Query().Get("name") {
 			case "web-1":
-				io.WriteString(w, `{"hosts":[{"id":"5Vf7Be7guuy","name":"web-1"}]}`)
+				io.WriteString(w, `{"hosts":[{"id":"exampleHst1","name":"web-1"}]}`)
 			case "dup":
 				io.WriteString(w, `{"hosts":[{"id":"a","name":"dup"},{"id":"b","name":"dup"}]}`)
 			default:
@@ -106,7 +106,7 @@ func TestResolveHost(t *testing.T) {
 			}
 		case strings.HasPrefix(r.URL.Path, "/api/v0/hosts-by-custom-identifier/"):
 			if strings.HasSuffix(r.URL.Path, "/i-123") {
-				io.WriteString(w, `{"host":{"id":"5Vf7Be7guuy","name":"web-1"}}`)
+				io.WriteString(w, `{"host":{"id":"exampleHst1","name":"web-1"}}`)
 			} else {
 				io.WriteString(w, `{"host":null}`)
 			}
@@ -115,9 +115,9 @@ func TestResolveHost(t *testing.T) {
 		}
 	})
 	ctx := context.Background()
-	for _, ref := range []string{"5Vf7Be7guuy", "web-1", "cid:i-123"} {
+	for _, ref := range []string{"exampleHst1", "web-1", "cid:i-123"} {
 		h, err := c.ResolveHost(ctx, ref)
-		if err != nil || StringField(h, "id") != "5Vf7Be7guuy" {
+		if err != nil || StringField(h, "id") != "exampleHst1" {
 			t.Errorf("%s: %s %v", ref, h, err)
 		}
 	}

@@ -62,8 +62,8 @@ stderr '> X-Api-Key: \*\*\*'
 -- org.json --
 {"name":"test-org","displayName":null}
 -- ids.txt --
-5Vf7Be7guuy
-5Vf7Be7guuz
+exampleHst1
+exampleHst2
 -- body.json --
 {"title":"from file","service":"web","from":1,"to":2}
 -- broken.json --

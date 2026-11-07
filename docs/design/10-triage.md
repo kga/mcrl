@@ -32,7 +32,7 @@
 mcrl triage
 
 # 1 件のアラートを詳しく
-mcrl triage 5VhFXR2a8mC
+mcrl triage exampleAlr1
 
 # サービスやホストで絞る
 mcrl triage --service web

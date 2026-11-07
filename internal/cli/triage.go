@@ -1327,7 +1327,7 @@ with the failure in "errors", and the exit code is 0.`, "Read",
 			"GET /api/v0/graph-annotations", "GET /api/v0/downtimes",
 			"POST /api/v0/logs (--otel-service)", "POST /api/v0/traces (--otel-service)"),
 		Example: `  mcrl triage
-  mcrl triage 5VhFXR2a8mC
+  mcrl triage exampleAlr1
   mcrl triage --service web --status critical
   mcrl triage --host web-3 --window 30m --skip annotations
   mcrl triage --otel-service checkout-api,payment

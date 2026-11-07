@@ -12,13 +12,13 @@ grep 'DELETE /api/v0/monitors/mon0000cpu1' $WORK/requests.log
 # --dry-run は送らずにリクエストを出す（確認も要らない）
 exec mcrl host retire web-1 --dry-run
 stdout '"method":"POST"'
-stdout '/api/v0/hosts/5Vf7Be7guuy/retire'
-! grep 'POST /api/v0/hosts/5Vf7Be7guuy/retire' $WORK/requests.log
+stdout '/api/v0/hosts/exampleHst1/retire'
+! grep 'POST /api/v0/hosts/exampleHst1/retire' $WORK/requests.log
 
 # 退役は確認のうえ実行し、取り直したホストを配列で出す
 exec mcrl host retire web-1 --yes --jq '.[].name'
 stdout '^web-1$'
-grep 'POST /api/v0/hosts/5Vf7Be7guuy/retire' $WORK/requests.log
+grep 'POST /api/v0/hosts/exampleHst1/retire' $WORK/requests.log
 exec mcrl host retire web-1 --yes --no-refetch
 stdout '^\{"success":true\}$'
 
@@ -72,7 +72,7 @@ grep 'BODY \{"duration":120,"name":"backup","serviceScopes":\["web"\],"start":17
 
 # メトリクス: 引数と、stdin のプラグイン形式
 exec mcrl metric post --host web-1 custom.a=1.5@1762390800
-grep 'BODY \[\{"hostId":"5Vf7Be7guuy","name":"custom.a","time":1762390800,"value":1.5\}\]' $WORK/requests.log
+grep 'BODY \[\{"hostId":"exampleHst1","name":"custom.a","time":1762390800,"value":1.5\}\]' $WORK/requests.log
 stderr 'older than 24 hours'
 stdin plugin.txt
 exec mcrl metric post --service web -

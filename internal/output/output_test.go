@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-const hosts = `[{"id":"5Vf7Be7guuy","name":"web-1","createdAt":1793970084,"memo":"<a&b>"},{"id":"abcdefghijk","name":"web-2","createdAt":1793970085}]`
+const hosts = `[{"id":"exampleHst1","name":"web-1","createdAt":1793970084,"memo":"<a&b>"},{"id":"abcdefghijk","name":"web-2","createdAt":1793970085}]`
 
 func print(t *testing.T, p *Printer, doc string) string {
 	t.Helper()
@@ -34,7 +34,7 @@ func TestPretty(t *testing.T) {
 
 func TestJSONLSplitsArrays(t *testing.T) {
 	got := print(t, &Printer{Format: FormatJSONL, Pretty: true}, hosts)
-	want := `{"id":"5Vf7Be7guuy","name":"web-1","createdAt":1793970084,"memo":"<a&b>"}` + "\n" +
+	want := `{"id":"exampleHst1","name":"web-1","createdAt":1793970084,"memo":"<a&b>"}` + "\n" +
 		`{"id":"abcdefghijk","name":"web-2","createdAt":1793970085}` + "\n"
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)
@@ -47,7 +47,7 @@ func TestJQRawStrings(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := print(t, &Printer{Format: FormatJSON, Query: code}, hosts)
-	if want := "5Vf7Be7guuy\nabcdefghijk\n"; got != want {
+	if want := "exampleHst1\nabcdefghijk\n"; got != want {
 		t.Errorf("got %q, want %q", got, want)
 	}
 }
@@ -69,7 +69,7 @@ func TestJQTSV(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := print(t, &Printer{Format: FormatJSON, Query: code}, hosts)
-	if want := "5Vf7Be7guuy\t1793970084\nabcdefghijk\t1793970085\n"; got != want {
+	if want := "exampleHst1\t1793970084\nabcdefghijk\t1793970085\n"; got != want {
 		t.Errorf("got %q, want %q", got, want)
 	}
 }
