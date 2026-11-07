@@ -1,0 +1,171 @@
+env MACKEREL_APIKEY=triage-key
+
+# 監視ごとにまとめ、重い状態 → 新しい順に並べる。上位 --max-groups 件だけ context を持つ
+exec mcrl triage --now @1800000000 --jq '.summary'
+stdout '^\{"alerts":8,"critical":4,"groups":6,"open":8,"unknown":0,"warning":4\}$'
+rm $WORK/requests.log
+exec mcrl triage --now @1800000000 --jq '.groups[] | "\(.status) \(.monitor.id) \(.alerts | length) \(.context != null) \([.alerts[].id] | join(","))"'
+cmp stdout want-groups.txt
+grep '^0$' $WORK/exitcode
+# 一覧は 1 回ずつ。ログ・トレースは --otel-service がなければ取らない
+grep -count=1 'GET /api/v0/monitors$' $WORK/requests.log
+grep -count=1 'GET /api/v0/hosts\?status=working&status=standby&status=maintenance&status=poweroff$' $WORK/requests.log
+grep -count=1 'GET /api/v0/downtimes$' $WORK/requests.log
+grep -count=1 'GET /api/v0/tsdb/latest\?hostId=hostOFF0001&name=loadavg5&name=cpu.user.percentage&name=memory.used$' $WORK/requests.log
+grep -count=1 'GET /api/v0/hosts/hostRETIRED$' $WORK/requests.log
+! grep 'POST|PUT|DELETE' $WORK/requests.log
+# 範囲外のグループ（swap）の周辺情報は取らない
+! grep 'hostWEB0002/metrics\?.*swap' $WORK/requests.log
+
+# 注記
+exec mcrl triage --now @1800000000 --jq '.groups[] | "\(.monitor.id) [\([.notes[].kind] | join(","))]"'
+cmp stdout want-notes.txt
+exec mcrl triage --now @1800000000 --jq '.groups[0].notes[1].message'
+stdout '^the host "off-1" last sent metrics at 2027-01-15T07:54:00Z, 1m before the alert opened$'
+exec mcrl triage --now @1800000000 --jq '.groups[0].alerts[0].host'
+stdout '^\{"id":"hostOFF0001","isRetired":false,"lastMetricAt":1799999640,"name":"off-1","roles":\[\],"status":"poweroff"\}$'
+
+# 範囲は最も早いアラートの前後 --window（今を超えない）
+exec mcrl triage --now @1800000000 --jq '.groups[2].context.range, .groups[0].context.range'
+stdout '^\{"from":1799998100,"to":1799999900\}$'
+stdout '^\{"from":1799998800,"to":1800000000\}$'
+
+# 割合監視は元のメトリクスを取る。disk% は metric-names から filesystem.*.used / size を探す
+exec mcrl triage --now @1800000000 --max-groups 6 --jq '.groups[] | .monitor.metric as $m | .context.metrics[]? | "\($m) \(.hostId // .service) \(.name)"'
+cmp stdout want-metrics.txt
+grep 'GET /api/v0/hosts/hostWEB0002/metrics\?from=1799998200&name=memory.swap_used&to=1800000000$' $WORK/requests.log
+grep 'GET /api/v0/hosts/hostWEB0002/metrics\?from=1799998200&name=memory.swap_free&to=1800000000$' $WORK/requests.log
+! grep 'name=disk%|name=cpu%|name=swap%|name=container' $WORK/requests.log
+exec mcrl triage --now @1800000000 --jq '.groups[1].alerts[0].host.cpuCount'
+stdout '^2$'
+
+# 一部の取得の失敗は errors に入り、終了コードは 0。container-*% は元のメトリクスが分からない
+exec mcrl triage --now @1800000000 --jq '.groups[] | .monitor.id as $id | .errors[] | "\($id) \(.source): \(.message)"'
+cmp stdout want-errors.txt
+grep '^0$' $WORK/exitcode
+
+# 他の監視・アノテーション・ダウンタイム
+exec mcrl triage --now @1800000000 --jq '.groups[2].context.otherMonitors[] | "\(.hostId) \(.name) \(.status)"'
+cmp stdout want-others.txt
+exec mcrl triage --now @1800000000 --jq '.groups[2].context | [.annotations[].id, .downtimes[].id] | join(",")'
+stdout '^anWEB000001,dtWEB000001$'
+exec mcrl triage --now @1800000000 --jq '.groups[2].next[]'
+cmp stdout want-next.txt
+
+# --max-groups / --max-hosts
+rm $WORK/requests.log
+exec mcrl triage --now @1800000000 --max-groups 3 --max-hosts 1 --jq '[.groups[] | .context != null] | map(tostring) | join(",")'
+stdout '^true,true,true,false,false,false$'
+exec mcrl triage --now @1800000000 --max-groups 3 --max-hosts 1 --jq '[.groups[2].context.metrics[].hostId] | unique | join(",")'
+stdout '^hostWEB0002$'
+! grep 'hostWEB0003/(metrics|monitored-statuses)' $WORK/requests.log
+! grep 'hostRETIRED' $WORK/requests.log
+exec mcrl triage --now @1800000000 --max-groups 3 --jq '.groups[3] | [.notes[].kind, .next[]] | join(",")'
+stdout '^mcrl triage --monitor id:monCTR00001$'
+
+# 絞り込み
+exec mcrl triage --now @1800000000 --status warning --jq '[.groups[].monitor.id] | join(",")'
+stdout '^monCTR00001,monDISK0001,monSVC00001,monSWAP0001$'
+exec mcrl triage --now @1800000000 --host web-1 --jq '[.groups[].alerts[].id] | join(",")'
+stdout '^alCPU000001,alDISK00001$'
+exec mcrl triage --now @1800000000 --service web --jq '[.groups[].monitor.id] | join(",")'
+stdout '^monCPU00001,monDISK0001,monSVC00001,monSWAP0001$'
+exec mcrl triage --now @1800000000 --role web:app --monitor monDISK0001 --jq '.summary.alerts'
+stdout '^3$'
+
+# --skip / --only: 取らない情報は context から消え、リクエストもしない
+rm $WORK/requests.log
+exec mcrl triage --now @1800000000 --skip metrics,annotations --jq '.groups[2].context | keys | join(",")'
+stdout '^downtimes,otherMonitors,range$'
+! grep '/metrics|/metric-names|graph-annotations' $WORK/requests.log
+rm $WORK/requests.log
+exec mcrl triage --now @1800000000 --only downtimes --jq '.groups[2].context | keys | join(",")'
+stdout '^downtimes,range$'
+! grep 'monitored-statuses|/metrics' $WORK/requests.log
+
+# --otel-service: ログ・トレースはグループとは別に、指定したサービスだけ取る
+rm $WORK/requests.log
+exec mcrl triage --now @1800000000 --otel-service checkout,denied --max-samples 2 --jq '.otel[] | "\(.serviceName) \(.range.from)-\(.range.to) logs=\(if has("logs") then .logs | length else "-" end) traces=\(if has("traces") then .traces | length else "-" end) errors=\([.errors[].source] | join(","))"'
+cmp stdout want-otel.txt
+grep '^0$' $WORK/exitcode
+grep '"serviceName":"checkout","severities":\["ERROR","FATAL"\],"to":1799999900' $WORK/requests.log
+grep '"order":\{"column":"LATENCY","direction":"DESC"\},"page":1,"perPage":2,"serviceName":"checkout","statusCode":"ERROR","to":1799999900' $WORK/requests.log
+exec mcrl triage --now @1800000000 --otel-service checkout --jq '.otel[0].logs[] | "\(.truncated) \(.body | length)"'
+stdout '^true 2000$'
+stdout '^false 5$'
+exec mcrl triage --now @1800000000 --otel-service checkout --jq '.otel[0].next[]'
+stdout '^mcrl log search --service checkout --since @1799998100 --until @1799999900 --severity error\+$'
+stdout '^mcrl trace list --service checkout --since @1799998100 --until @1799999900 --status error --sort latency$'
+# トレースは 30 分まで。--window を広げると errors に入る
+exec mcrl triage --now @1800000000 --otel-service checkout --window 20m --skip logs --jq '.otel[0].errors[].message'
+stdout '30 minutes'
+
+# アラート ID を指定すると、そのアラートだけを経過（logs）つきで
+rm $WORK/requests.log
+exec mcrl triage --now @1800000000 alDISK00001 --jq '.groups[0] | "\(.alerts | length) \(.alerts[0].logs[0].id) \(.next[0])"'
+stdout '^1 log1 mcrl metric get --host id:hostWEB0001 --name filesystem.root.size --since @1799987700$'
+grep 'GET /api/v0/alerts/alDISK00001/logs' $WORK/requests.log
+! grep 'GET /api/v0/alerts$' $WORK/requests.log
+
+# 使い方の誤り
+! exec mcrl triage --skip nope
+grep '^2$' $WORK/exitcode
+stderr 'unknown source \\"nope\\"'
+! exec mcrl triage --skip logs --only traces
+grep '^2$' $WORK/exitcode
+! exec mcrl triage --window 0
+grep '^2$' $WORK/exitcode
+! exec mcrl triage --status ok
+grep '^2$' $WORK/exitcode
+! exec mcrl triage --max-groups 0
+grep '^2$' $WORK/exitcode
+! exec mcrl triage --role web
+grep '^2$' $WORK/exitcode
+
+-- want-groups.txt --
+CRITICAL monCONN0001 1 true alCONN00001
+CRITICAL monCPU00001 1 true alCPU000001
+CRITICAL monDISK0001 3 true alDISK00002,alDISK00001,alDISK00003
+WARNING monCTR00001 1 true alCTR000001
+WARNING monSVC00001 1 true alSVC000001
+WARNING monSWAP0001 1 false alSWAP00001
+-- want-notes.txt --
+monCONN0001 [host-not-working,metrics-stopped]
+monCPU00001 [monitor-muted,in-downtime,recent-annotation,other-monitors-failing]
+monDISK0001 [in-downtime,recent-annotation,many-hosts,other-monitors-failing,other-monitors-failing]
+monCTR00001 [host-retired]
+monSVC00001 [in-downtime,recent-annotation]
+monSWAP0001 []
+-- want-metrics.txt --
+cpu% hostWEB0001 cpu.idle.percentage
+disk% hostWEB0002 filesystem.root.size
+disk% hostWEB0002 filesystem.root.used
+disk% hostWEB0002 filesystem.vdb.size
+disk% hostWEB0002 filesystem.vdb.used
+disk% hostWEB0001 filesystem.root.size
+disk% hostWEB0001 filesystem.root.used
+disk% hostWEB0001 filesystem.vdb.size
+disk% hostWEB0001 filesystem.vdb.used
+disk% hostWEB0003 filesystem.root.size
+disk% hostWEB0003 filesystem.root.used
+disk% hostWEB0003 filesystem.vdb.size
+disk% hostWEB0003 filesystem.vdb.used
+response.time web response.time
+swap% hostWEB0002 memory.swap_free
+swap% hostWEB0002 memory.swap_total
+-- want-errors.txt --
+monDISK0001 monitors: host hostWEB0003: Forbidden (HTTP 403 GET /api/v0/hosts/hostWEB0003/monitored-statuses)
+monCTR00001 metrics: container-cpu% is a rate monitor whose source metrics are unknown, so no metric is shown; the alert's value has the rate
+-- want-others.txt --
+hostWEB0002 swap WARNING
+hostWEB0001 cpu high CRITICAL
+-- want-next.txt --
+mcrl alert logs alDISK00002
+mcrl metric get --host id:hostWEB0002 --name filesystem.root.size --since @1799987300
+mcrl metric get --host id:hostWEB0002 --name filesystem.root.used --since @1799987300
+mcrl metric get --host id:hostWEB0002 --name filesystem.vdb.size --since @1799987300
+mcrl host monitor-status id:hostWEB0002 --expand
+mcrl annotation list --service web --since @1799911700
+-- want-otel.txt --
+checkout 1799998100-1799999900 logs=2 traces=1 errors=
+denied 1799998100-1799999900 logs=- traces=- errors=logs,traces

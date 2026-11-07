@@ -16,14 +16,14 @@ Every endpoint in the index of the [Mackerel API documents](https://mackerel.io/
 | [`GET /api/v0/services/<serviceName>/roles`](https://mackerel.io/api-docs/entry/services#rolelist) | Read | [`mcrl role list`](role.md#mcrl-role-list) |
 | [`POST /api/v0/services/<serviceName>/roles`](https://mackerel.io/api-docs/entry/services#rolecreate) | Read, Write | [`mcrl role create`](role.md#mcrl-role-create) |
 | [`DELETE /api/v0/services/<serviceName>/roles/<roleName>`](https://mackerel.io/api-docs/entry/services#roledelete) | Read, Write | [`mcrl role delete`](role.md#mcrl-role-delete) |
-| [`GET /api/v0/services/<serviceName>/metric-names`](https://mackerel.io/api-docs/entry/services#metric-names) | Read | [`mcrl audit`](audit.md#mcrl-audit), [`mcrl metric names`](metric.md#mcrl-metric-names) |
+| [`GET /api/v0/services/<serviceName>/metric-names`](https://mackerel.io/api-docs/entry/services#metric-names) | Read | [`mcrl audit`](audit.md#mcrl-audit), [`mcrl metric names`](metric.md#mcrl-metric-names), [`mcrl triage`](triage.md#mcrl-triage) |
 
 ## Hosts
 
 | Endpoint | API key permission | Commands |
 |---|---|---|
 | [`POST /api/v0/hosts`](https://mackerel.io/api-docs/entry/hosts#create) | Read, Write | [`mcrl host create`](host.md#mcrl-host-create) |
-| [`GET /api/v0/hosts/<hostId>`](https://mackerel.io/api-docs/entry/hosts#get) | Read | [`mcrl audit`](audit.md#mcrl-audit), [`mcrl host edit`](host.md#mcrl-host-edit), [`mcrl host get`](host.md#mcrl-host-get), [`mcrl host update`](host.md#mcrl-host-update) |
+| [`GET /api/v0/hosts/<hostId>`](https://mackerel.io/api-docs/entry/hosts#get) | Read | [`mcrl audit`](audit.md#mcrl-audit), [`mcrl host edit`](host.md#mcrl-host-edit), [`mcrl host get`](host.md#mcrl-host-get), [`mcrl host update`](host.md#mcrl-host-update), [`mcrl triage`](triage.md#mcrl-triage) |
 | [`GET /api/v0/hosts-by-custom-identifier/<customIdentifier>`](https://mackerel.io/api-docs/entry/hosts#get-by-custom-identifier) | Read | [`mcrl host get`](host.md#mcrl-host-get) |
 | [`PUT /api/v0/hosts/<hostId>`](https://mackerel.io/api-docs/entry/hosts#update-information) | Read, Write | [`mcrl host edit`](host.md#mcrl-host-edit), [`mcrl host update`](host.md#mcrl-host-update) |
 | [`POST /api/v0/hosts/<hostId>/status`](https://mackerel.io/api-docs/entry/hosts#update-status) | Read, Write | [`mcrl host status`](host.md#mcrl-host-status) |
@@ -31,17 +31,17 @@ Every endpoint in the index of the [Mackerel API documents](https://mackerel.io/
 | [`PUT /api/v0/hosts/<hostId>/role-fullnames`](https://mackerel.io/api-docs/entry/hosts#update-roles) | Write | [`mcrl host role add`](host.md#mcrl-host-role-add), [`mcrl host role remove`](host.md#mcrl-host-role-remove), [`mcrl host role set`](host.md#mcrl-host-role-set) |
 | [`POST /api/v0/hosts/<hostId>/retire`](https://mackerel.io/api-docs/entry/hosts#retire) | Read, Write | [`mcrl host retire`](host.md#mcrl-host-retire) |
 | [`POST /api/v0/hosts/bulk-retire`](https://mackerel.io/api-docs/entry/hosts#bulk-retire) | Read, Write | [`mcrl host retire`](host.md#mcrl-host-retire) |
-| [`GET /api/v0/hosts`](https://mackerel.io/api-docs/entry/hosts#list) | Read | [`mcrl audit`](audit.md#mcrl-audit), [`mcrl host get`](host.md#mcrl-host-get), [`mcrl host list`](host.md#mcrl-host-list) |
-| [`GET /api/v0/hosts/<hostId>/metric-names`](https://mackerel.io/api-docs/entry/hosts#metric-names) | Read | [`mcrl metric names`](metric.md#mcrl-metric-names) |
-| [`GET /api/v0/hosts/<hostId>/monitored-statuses`](https://mackerel.io/api-docs/entry/hosts#monitored-statuses) | Read | [`mcrl host monitor-status`](host.md#mcrl-host-monitor-status) |
+| [`GET /api/v0/hosts`](https://mackerel.io/api-docs/entry/hosts#list) | Read | [`mcrl audit`](audit.md#mcrl-audit), [`mcrl host get`](host.md#mcrl-host-get), [`mcrl host list`](host.md#mcrl-host-list), [`mcrl triage`](triage.md#mcrl-triage) |
+| [`GET /api/v0/hosts/<hostId>/metric-names`](https://mackerel.io/api-docs/entry/hosts#metric-names) | Read | [`mcrl metric names`](metric.md#mcrl-metric-names), [`mcrl triage`](triage.md#mcrl-triage) |
+| [`GET /api/v0/hosts/<hostId>/monitored-statuses`](https://mackerel.io/api-docs/entry/hosts#monitored-statuses) | Read | [`mcrl host monitor-status`](host.md#mcrl-host-monitor-status), [`mcrl triage`](triage.md#mcrl-triage) |
 
 ## Host Metrics
 
 | Endpoint | API key permission | Commands |
 |---|---|---|
 | [`POST /api/v0/tsdb`](https://mackerel.io/api-docs/entry/host-metrics#post) | Read, Write | [`mcrl metric post`](metric.md#mcrl-metric-post) |
-| [`GET /api/v0/hosts/<hostId>/metrics`](https://mackerel.io/api-docs/entry/host-metrics#get) | Read | [`mcrl metric get`](metric.md#mcrl-metric-get) |
-| [`GET /api/v0/tsdb/latest`](https://mackerel.io/api-docs/entry/host-metrics#get-latest) | Read | [`mcrl audit`](audit.md#mcrl-audit), [`mcrl metric latest`](metric.md#mcrl-metric-latest) |
+| [`GET /api/v0/hosts/<hostId>/metrics`](https://mackerel.io/api-docs/entry/host-metrics#get) | Read | [`mcrl metric get`](metric.md#mcrl-metric-get), [`mcrl triage`](triage.md#mcrl-triage) |
+| [`GET /api/v0/tsdb/latest`](https://mackerel.io/api-docs/entry/host-metrics#get-latest) | Read | [`mcrl audit`](audit.md#mcrl-audit), [`mcrl metric latest`](metric.md#mcrl-metric-latest), [`mcrl triage`](triage.md#mcrl-triage) |
 | [`POST /api/v0/graph-defs/create`](https://mackerel.io/api-docs/entry/host-metrics#post-graphdef) | Read, Write | [`mcrl metric graph-def create`](metric.md#mcrl-metric-graph-def-create) |
 | [`DELETE /api/v0/graph-defs`](https://mackerel.io/api-docs/entry/host-metrics#delete-graphdef) | Read, Write | [`mcrl metric graph-def delete`](metric.md#mcrl-metric-graph-def-delete) |
 
@@ -50,7 +50,7 @@ Every endpoint in the index of the [Mackerel API documents](https://mackerel.io/
 | Endpoint | API key permission | Commands |
 |---|---|---|
 | [`POST /api/v0/services/<serviceName>/tsdb`](https://mackerel.io/api-docs/entry/service-metrics#post) | Read, Write | [`mcrl metric post`](metric.md#mcrl-metric-post) |
-| [`GET /api/v0/services/<serviceName>/metrics`](https://mackerel.io/api-docs/entry/service-metrics#get) | Read | [`mcrl metric get`](metric.md#mcrl-metric-get) |
+| [`GET /api/v0/services/<serviceName>/metrics`](https://mackerel.io/api-docs/entry/service-metrics#get) | Read | [`mcrl metric get`](metric.md#mcrl-metric-get), [`mcrl triage`](triage.md#mcrl-triage) |
 | [`DELETE /api/v0/services/<serviceName>/graph-defs/<graphName>`](https://mackerel.io/api-docs/entry/service-metrics#delete-graph-def) | Read, Write | [`mcrl metric graph-def delete`](metric.md#mcrl-metric-graph-def-delete) |
 
 ## Check Monitoring
@@ -83,7 +83,7 @@ Every endpoint in the index of the [Mackerel API documents](https://mackerel.io/
 | Endpoint | API key permission | Commands |
 |---|---|---|
 | [`POST /api/v0/monitors`](https://mackerel.io/api-docs/entry/monitors#create) | Read, Write | [`mcrl monitor create`](monitor.md#mcrl-monitor-create) |
-| [`GET /api/v0/monitors`](https://mackerel.io/api-docs/entry/monitors#list) | Read | [`mcrl audit`](audit.md#mcrl-audit), [`mcrl host monitor-status`](host.md#mcrl-host-monitor-status), [`mcrl monitor get`](monitor.md#mcrl-monitor-get), [`mcrl monitor list`](monitor.md#mcrl-monitor-list) |
+| [`GET /api/v0/monitors`](https://mackerel.io/api-docs/entry/monitors#list) | Read | [`mcrl audit`](audit.md#mcrl-audit), [`mcrl host monitor-status`](host.md#mcrl-host-monitor-status), [`mcrl monitor get`](monitor.md#mcrl-monitor-get), [`mcrl monitor list`](monitor.md#mcrl-monitor-list), [`mcrl triage`](triage.md#mcrl-triage) |
 | [`GET /api/v0/monitors/<monitorId>`](https://mackerel.io/api-docs/entry/monitors#get) | Read | [`mcrl monitor get`](monitor.md#mcrl-monitor-get), [`mcrl monitor mute`](monitor.md#mcrl-monitor-mute), [`mcrl monitor unmute`](monitor.md#mcrl-monitor-unmute), [`mcrl monitor update`](monitor.md#mcrl-monitor-update) |
 | [`PUT /api/v0/monitors/<monitorId>`](https://mackerel.io/api-docs/entry/monitors#update) | Read, Write | [`mcrl monitor edit`](monitor.md#mcrl-monitor-edit), [`mcrl monitor mute`](monitor.md#mcrl-monitor-mute), [`mcrl monitor unmute`](monitor.md#mcrl-monitor-unmute), [`mcrl monitor update`](monitor.md#mcrl-monitor-update) |
 | [`DELETE /api/v0/monitors/<monitorId>`](https://mackerel.io/api-docs/entry/monitors#delete) | Read, Write | [`mcrl monitor delete`](monitor.md#mcrl-monitor-delete) |
@@ -93,7 +93,7 @@ Every endpoint in the index of the [Mackerel API documents](https://mackerel.io/
 | Endpoint | API key permission | Commands |
 |---|---|---|
 | [`POST /api/v0/downtimes`](https://mackerel.io/api-docs/entry/downtimes#create) | Read, Write | [`mcrl downtime create`](downtime.md#mcrl-downtime-create) |
-| [`GET /api/v0/downtimes`](https://mackerel.io/api-docs/entry/downtimes#list) | Read | [`mcrl audit`](audit.md#mcrl-audit), [`mcrl downtime get`](downtime.md#mcrl-downtime-get), [`mcrl downtime list`](downtime.md#mcrl-downtime-list), [`mcrl downtime update`](downtime.md#mcrl-downtime-update) |
+| [`GET /api/v0/downtimes`](https://mackerel.io/api-docs/entry/downtimes#list) | Read | [`mcrl audit`](audit.md#mcrl-audit), [`mcrl downtime get`](downtime.md#mcrl-downtime-get), [`mcrl downtime list`](downtime.md#mcrl-downtime-list), [`mcrl downtime update`](downtime.md#mcrl-downtime-update), [`mcrl triage`](triage.md#mcrl-triage) |
 | [`PUT /api/v0/downtimes/<downtimeId>`](https://mackerel.io/api-docs/entry/downtimes#update) | Read, Write | [`mcrl downtime edit`](downtime.md#mcrl-downtime-edit), [`mcrl downtime update`](downtime.md#mcrl-downtime-update) |
 | [`DELETE /api/v0/downtimes/<downtimeId>`](https://mackerel.io/api-docs/entry/downtimes#delete) | Read, Write | [`mcrl downtime delete`](downtime.md#mcrl-downtime-delete) |
 
@@ -119,11 +119,11 @@ Every endpoint in the index of the [Mackerel API documents](https://mackerel.io/
 
 | Endpoint | API key permission | Commands |
 |---|---|---|
-| [`GET /api/v0/alerts`](https://mackerel.io/api-docs/entry/alerts#list) | Read | [`mcrl alert list`](alert.md#mcrl-alert-list), [`mcrl audit`](audit.md#mcrl-audit) |
-| [`GET /api/v0/alerts/<alertId>`](https://mackerel.io/api-docs/entry/alerts#get) | Read | [`mcrl alert get`](alert.md#mcrl-alert-get) |
+| [`GET /api/v0/alerts`](https://mackerel.io/api-docs/entry/alerts#list) | Read | [`mcrl alert list`](alert.md#mcrl-alert-list), [`mcrl audit`](audit.md#mcrl-audit), [`mcrl triage`](triage.md#mcrl-triage) |
+| [`GET /api/v0/alerts/<alertId>`](https://mackerel.io/api-docs/entry/alerts#get) | Read | [`mcrl alert get`](alert.md#mcrl-alert-get), [`mcrl triage`](triage.md#mcrl-triage) |
 | [`PUT /api/v0/alerts/<alertId>`](https://mackerel.io/api-docs/entry/alerts#update) | Read, Write | [`mcrl alert memo`](alert.md#mcrl-alert-memo) |
 | [`POST /api/v0/alerts/<alertId>/close`](https://mackerel.io/api-docs/entry/alerts#close) | Read, Write | [`mcrl alert close`](alert.md#mcrl-alert-close) |
-| [`GET /api/v0/alerts/<alertId>/logs`](https://mackerel.io/api-docs/entry/alerts#logs) | Read | [`mcrl alert logs`](alert.md#mcrl-alert-logs) |
+| [`GET /api/v0/alerts/<alertId>/logs`](https://mackerel.io/api-docs/entry/alerts#logs) | Read | [`mcrl alert logs`](alert.md#mcrl-alert-logs), [`mcrl triage`](triage.md#mcrl-triage) |
 
 ## Alert Group Settings
 
@@ -150,7 +150,7 @@ Every endpoint in the index of the [Mackerel API documents](https://mackerel.io/
 | Endpoint | API key permission | Commands |
 |---|---|---|
 | [`POST /api/v0/graph-annotations`](https://mackerel.io/api-docs/entry/graph-annotations#create) | Read, Write | [`mcrl annotation create`](annotation.md#mcrl-annotation-create), [`mcrl annotation wrap`](annotation.md#mcrl-annotation-wrap) |
-| [`GET /api/v0/graph-annotations`](https://mackerel.io/api-docs/entry/graph-annotations#get) | Read | [`mcrl annotation list`](annotation.md#mcrl-annotation-list) |
+| [`GET /api/v0/graph-annotations`](https://mackerel.io/api-docs/entry/graph-annotations#get) | Read | [`mcrl annotation list`](annotation.md#mcrl-annotation-list), [`mcrl triage`](triage.md#mcrl-triage) |
 | [`PUT /api/v0/graph-annotations/<annotationId>`](https://mackerel.io/api-docs/entry/graph-annotations#update) | Read, Write | [`mcrl annotation update`](annotation.md#mcrl-annotation-update), [`mcrl annotation wrap`](annotation.md#mcrl-annotation-wrap) |
 | [`DELETE /api/v0/graph-annotations/<annotationId>`](https://mackerel.io/api-docs/entry/graph-annotations#delete) | Read, Write | [`mcrl annotation delete`](annotation.md#mcrl-annotation-delete) |
 
@@ -195,14 +195,14 @@ Every endpoint in the index of the [Mackerel API documents](https://mackerel.io/
 
 | Endpoint | API key permission | Commands |
 |---|---|---|
-| [`POST /api/v0/logs`](https://mackerel.io/api-docs/entry/logs#list) | Read | [`mcrl log search`](log.md#mcrl-log-search), [`mcrl log tail`](log.md#mcrl-log-tail) |
+| [`POST /api/v0/logs`](https://mackerel.io/api-docs/entry/logs#list) | Read | [`mcrl log search`](log.md#mcrl-log-search), [`mcrl log tail`](log.md#mcrl-log-tail), [`mcrl triage`](triage.md#mcrl-triage) |
 | [`GET /api/v0/saved-log-searches`](https://mackerel.io/api-docs/entry/logs#list-saved-searches) | Read | [`mcrl log saved`](log.md#mcrl-log-saved), [`mcrl log search`](log.md#mcrl-log-search) |
 
 ## Traces
 
 | Endpoint | API key permission | Commands |
 |---|---|---|
-| [`POST /api/v0/traces`](https://mackerel.io/api-docs/entry/traces#list) | Read | [`mcrl trace list`](trace.md#mcrl-trace-list) |
+| [`POST /api/v0/traces`](https://mackerel.io/api-docs/entry/traces#list) | Read | [`mcrl trace list`](trace.md#mcrl-trace-list), [`mcrl triage`](triage.md#mcrl-triage) |
 | [`GET /api/v0/traces/<traceId>`](https://mackerel.io/api-docs/entry/traces#get) | Read | [`mcrl trace get`](trace.md#mcrl-trace-get) |
 
 ## APM
