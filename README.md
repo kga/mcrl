@@ -33,24 +33,7 @@ mcrl auth login          # paste an API key; it is verified and stored in the OS
 mcrl auth status         # which profile, where the key comes from, which organization
 ```
 
-The key is looked up in this order: the `MACKEREL_APIKEY` environment variable, the profile's `api_key_command` (for example a password manager), the OS keychain, then a plaintext `api_key` in the config file. Several organizations can be used through profiles:
-
-```toml
-# ~/.config/mcrl/config.toml
-default_profile = "work"
-
-[profiles.staging]
-api_key_command = "op read op://Infra/mackerel-staging/credential"
-
-[profiles.kcps]
-base_url = "https://kcps-mackerel.io"
-```
-
-```sh
-mcrl --profile staging host list
-```
-
-To pin a profile per directory, set `MCRL_PROFILE` with a tool such as [mise](https://mise.jdx.dev/) (`[env] MCRL_PROFILE = "staging"` in `mise.toml`) or [direnv](https://direnv.net/).
+mcrl can also take the key from `MACKEREL_APIKEY` or from a password manager, and use several organizations through profiles. See [Configuration and authentication](docs/configuration.md) and [Password managers and secret stores](docs/secret-managers.md).
 
 ## Examples
 
@@ -117,83 +100,18 @@ mcrl api /org
 
 Every command has examples in `mcrl <command> --help`, along with the API endpoint it calls and the API key permission it needs.
 
-## Output and exit codes
+## Documentation
 
-- `-o json` (default) or `-o jsonl` (one item per line, streamed where possible)
-- `--jq <expr>`: strings are printed without quotes, so IDs can be piped to the next command
-- Lists are arrays; the API's wrapper objects are removed. `mcrl api` prints responses as is
-- `--expand` adds related names under `_expanded`, apart from the API's own fields
-
-| Code | Meaning |
-|---|---|
-| 0 | success |
-| 1 | other error |
-| 2 | usage error, or confirmation needed without `--yes` |
-| 3 | authentication or authorization error |
-| 4 | not found |
-| 5 | invalid input, conflict, or a name matching several resources |
-| 6 | rate limited |
-| 7 | network error |
-| 8 | `mcrl audit --fail-on` found something at or above the given severity |
-| 130 | interrupted |
-
-See `mcrl help environment` for environment variables.
-
-## Use with AI agents (MCP)
-
-`mcrl mcp` runs an MCP server on stdio, so AI agents can call mcrl commands as tools. Each tool runs the command of the same name (`host_get` runs `mcrl host get`) and returns its JSON output; arguments mirror the command's flags plus `jq`.
-
-Only read-only commands are exposed by default. `--allow-write` adds commands that create or update resources (with a `dry_run` argument). Commands that ask for confirmation in the CLI, such as `delete` and `host retire`, are exposed only with `--allow-destructive`; your MCP client's tool approval then takes the place of the prompt. See `mcrl mcp --help`.
-
-Claude Code:
-
-```sh
-claude mcp add mcrl -- mcrl mcp
-claude mcp add mcrl-prod -- mcrl --profile prod mcp    # a specific profile
-claude mcp add mcrl-write -- mcrl mcp --allow-write    # also allow updates
-```
-
-Claude Desktop (`claude_desktop_config.json`):
-
-```json
-{
-  "mcpServers": {
-    "mcrl": {
-      "command": "/path/to/mcrl",
-      "args": ["mcp"]
-    }
-  }
-}
-```
-
-The API key is resolved as usual: the key stored by `mcrl auth login`, or `MACKEREL_APIKEY` in `env`.
-
-## Extensions
-
-`mcrl <name>` runs an executable named `mcrl-<name>` when `<name>` is not a built-in command, so you can add commands without changing mcrl. Extensions can be written in any language; they get `MCRL_BIN`, `MCRL_PROFILE` and `MCRL_API_BASE` and call `"$MCRL_BIN" api ...` to reach the API. The API key itself is never passed to them.
-
-```sh
-mcrl extension install someone/mcrl-drill     # clone a GitHub repository named mcrl-<name>
-mcrl extension install ./mcrl-hello           # link a local directory while developing
-mcrl extension list                           # source, URL and the installed commit
-mcrl extension upgrade drill --dry-run        # see the new commit before upgrading
-```
-
-An extension runs with your permissions and can use your API key through mcrl, so read its code before installing it. mcrl never updates an extension on its own. A minimal example is in [examples/extensions/mcrl-hello](examples/extensions/mcrl-hello/mcrl-hello); see [docs/extensions.md](docs/extensions.md) (Japanese) for details.
-
-## Shell completion
-
-```sh
-mcrl completion zsh > "${fpath[1]}/_mcrl"     # zsh
-mcrl completion bash > /etc/bash_completion.d/mcrl   # bash
-mcrl completion fish > ~/.config/fish/completions/mcrl.fish
-```
-
-Host, monitor and other names are completed from the API and cached for 5 minutes.
+- [Using mcrl](docs/usage.md): naming resources, output and `--jq`, creating and updating, errors and exit codes, completion
+- [Configuration and authentication](docs/configuration.md)
+- [Password managers and secret stores](docs/secret-managers.md)
+- [AI agents (MCP)](docs/ai-agents.md): `claude mcp add mcrl -- mcrl mcp`
+- [Extensions](docs/extensions.md): add commands as `mcrl-<name>` executables
+- [Command reference](docs/reference/README.md)
 
 ## Development
 
-Design documents (in Japanese) are in [docs/](docs/README.md).
+Design documents and the decision log (in Japanese) are in [docs/design/](docs/design/README.md).
 
 ```sh
 mise run test
