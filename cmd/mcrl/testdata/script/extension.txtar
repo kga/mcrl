@@ -1,0 +1,60 @@
+# PATH 上の mcrl-testext は "mcrl testext" で動き、引数・標準入力・終了コードをそのまま受け渡す
+stdin input.txt
+exec mcrl testext a --flag -x -- b
+stdout '"args":\["a","--flag","-x","--","b"\]'
+stdout '"stdin":"from stdin\\n"'
+
+env TESTEXT_EXIT=7
+! exec mcrl testext
+grep '^7$' $WORK/exitcode
+env TESTEXT_EXIT=
+
+# 拡張に渡す環境変数。API キーそのものは渡さない
+stdin good-key.txt
+exec mcrl auth login --with-token
+exec mcrl --profile default -o jsonl --debug testext
+stdout '"MCRL_PROFILE":"default"'
+stdout '"MCRL_API_BASE":"http://127.0.0.1:'
+stdout '"MCRL_BIN":"[^"]*mcrl'
+stdout '"MCRL_OUTPUT":"jsonl"'
+stdout '"MCRL_DEBUG":"true"'
+! stdout 'good-key'
+! stdout 'MACKEREL_APIKEY'
+
+# 拡張から本体を呼ぶと、本体がキーを解決する
+exec mcrl testext run-mcrl org get --jq .name
+stdout '^test-org$'
+
+# 拡張の名前の前に置けないグローバルフラグ
+! exec mcrl --jq . testext
+grep '^2$' $WORK/exitcode
+stderr 'cannot come before an extension name'
+
+# 本体のコマンド・別名が常に優先される。拡張でない未知のコマンドは今までどおりエラー
+exec mcrl extension list --jq '.[] | select(.name == "testext") | .source'
+stdout '^path$'
+! exec mcrl no-such-command
+stderr 'unknown command'
+
+# ヘルプと補完に拡張が出る
+exec mcrl --help
+stdout 'Extension commands:'
+stdout '  testext +Extension at '
+exec mcrl __complete tes
+stdout '^testext\t'
+
+# 名前が mcrl-<name> でないディレクトリや、存在しない拡張
+! exec mcrl extension install $WORK/notext
+grep '^2$' $WORK/exitcode
+! exec mcrl extension remove nothing
+grep '^4$' $WORK/exitcode
+! exec mcrl extension remove testext
+stderr 'not installed by mcrl'
+! exec mcrl extension upgrade testext
+stderr 'not installed by mcrl'
+
+-- input.txt --
+from stdin
+-- good-key.txt --
+good-key
+-- notext/run --
