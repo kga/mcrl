@@ -13,7 +13,7 @@ import (
 
 func newMetricCmd(f *cmdutil.Factory) *cobra.Command {
 	return newGroup("metric", "Read and post metrics", []string{"metrics"},
-		newMetricGetCmd(f), newMetricLatestCmd(f), newMetricNamesCmd(f), newMetricPostCmd(f))
+		newMetricGetCmd(f), newMetricLatestCmd(f), newMetricNamesCmd(f), newMetricPostCmd(f), newGraphDefCmd(f))
 }
 
 // target is the --host / --service pair shared by metric commands.
