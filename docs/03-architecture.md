@@ -140,6 +140,7 @@ type APIError struct {
 | TTY 判定 | `github.com/mattn/go-isatty` | |
 | 差分表示 | `github.com/sergi/go-diff` など | `edit` / `apply` の差分 |
 | CLI テスト | `github.com/rogpeppe/go-internal/testscript` | txtar で CLI の入出力をまとめて書ける |
+| MCP サーバー（`mcrl mcp`） | `github.com/modelcontextprotocol/go-sdk`、スキーマの検証に `github.com/google/jsonschema-go` | 公式の Go SDK。stdio とテスト用のインメモリ transport がある（[decisions.md](decisions.md) D20） |
 
 依存は最小限にし、標準ライブラリで足りるもの（HTTP、JSON、`slog`、`iter`）は標準を使う。
 
