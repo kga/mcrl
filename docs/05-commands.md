@@ -34,6 +34,7 @@ mcrl
 ├── apm         http / db
 ├── export / diff / apply   （宣言的管理、07-declarative.md）
 ├── api         生 API 呼び出し
+├── mcp         MCP サーバー（AI エージェントにツールとして公開）
 ├── open        Web コンソールを開く
 ├── doctor      設定・接続・権限の診断
 ├── completion  bash / zsh / fish / powershell
@@ -241,6 +242,25 @@ mcrl log search --service web --since 1h --where 'res.status>=500' --severity er
 ```sh
 mcrl api /hosts --jq '.hosts[].name'
 mcrl api -X POST /graph-annotations -F title=test -F service=web -F from=now -F to=now
+```
+
+## MCP サーバー
+
+| コマンド | 説明 |
+|---|---|
+| `mcp` | stdio で MCP サーバーとして動き、mcrl のコマンドを AI エージェントにツールとして公開する。既定は参照系だけ。`--allow-write` で作成・更新系、`--allow-destructive` で削除・退役などの確認プロンプトが出るコマンドも公開する |
+
+- ツール名はコマンドパスの空白とハイフンを `_` にしたもの（`host monitor-status` → `host_monitor_status`）
+- 引数はフラグ名（ハイフンを `_` に）と位置引数（`Use` の `<host>` → `host`。`...` 付きは配列）。全ツールに `jq`、更新系に `dry_run`。`--file` は `body`（JSON の値か、JSON/YAML の文字列）にして stdin から `--file -` で渡す（ファイルはサーバー側のマシンにあるため）
+- 説明文はコマンドの `Long`（API とキーの権限を含む）に `CLI: mcrl ...` の使い方を付けたもの。`--help` と同じ文から作る
+- 出力はコマンドの JSON（`-o json --compact`）をそのまま返す。失敗はツールエラーとして stderr と同じ `{"error": {...}}` に `exitCode` を足して返す
+- `mcrl mcp` に付けたグローバルフラグ（`--profile`、`--timeout`、`--debug`）は全ツール呼び出しに効く
+- `api` は GET だけ。`edit`・`log tail`・`annotation wrap`・`check run`・`auth`・`config`・`doctor`・`version` は公開しない
+- どのコマンドをどの区分で公開するかは `internal/cli/mcp.go` の表で決め、全コマンドが表か除外リストのどちらかにあることをテストで確かめる。方針は [decisions.md](decisions.md) D20
+
+```sh
+claude mcp add mcrl -- mcrl mcp
+claude mcp add mcrl-prod -- mcrl --profile prod mcp
 ```
 
 ## 拡張

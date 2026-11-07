@@ -58,9 +58,17 @@ M2 で見送ったもの: `config get/set/list/edit`、`open`。
 
 - `export`、`diff`、`apply`（[07-declarative.md](07-declarative.md)）
 
-## M5 以降の候補
+## M5: AI エージェント向け
 
-- `mcrl mcp`: MCP サーバーとして起動し、AI エージェントにツールとして公開
+2026-11-07 に `mcrl mcp` を実装: stdio の MCP サーバーとして、参照系のコマンドをツールとして公開する（`--allow-write` で更新系、`--allow-destructive` で削除・退役なども）。ツール呼び出しは cobra コマンドの実行に変換し、出力は CLI の JSON のまま（[decisions.md](decisions.md) D20）。
+
+候補:
+
+- `mcrl triage`: 障害対応の最初の 1 コマンド（開いているアラート・関係するホストと監視・直近のメトリクスやログをまとめて返す）。MCP のツールとしても公開する
+- MCP の resources / prompts（ツール以外の公開方法）は必要になってから検討する
+
+## M6 以降の候補
+
 - プラグイン（`mcrl-<name>`）の仕組みの整備
 - ディレクトリ単位の `.mcrl.toml` によるプロファイル固定（[decisions.md](decisions.md) D8）
 

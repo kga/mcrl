@@ -105,7 +105,7 @@ mcrl api /org
 | Dashboards | `dashboard ...`, `annotation list/create/update/delete/wrap` |
 | Observability | `log search/tail/saved`, `trace list/get`, `apm http/db` |
 | Organization | `org get`, `org ip-restriction get/set`, `user list/remove`, `invitation ...`, `aws ...` |
-| Other | `api`, `auth`, `config`, `doctor`, `completion`, `version` |
+| Other | `api`, `mcp`, `auth`, `config`, `doctor`, `completion`, `version` |
 
 Every command has examples in `mcrl <command> --help`, along with the API endpoint it calls and the API key permission it needs.
 
@@ -129,6 +129,35 @@ Every command has examples in `mcrl <command> --help`, along with the API endpoi
 | 130 | interrupted |
 
 See `mcrl help environment` for environment variables.
+
+## Use with AI agents (MCP)
+
+`mcrl mcp` runs an MCP server on stdio, so AI agents can call mcrl commands as tools. Each tool runs the command of the same name (`host_get` runs `mcrl host get`) and returns its JSON output; arguments mirror the command's flags plus `jq`.
+
+Only read-only commands are exposed by default. `--allow-write` adds commands that create or update resources (with a `dry_run` argument). Commands that ask for confirmation in the CLI, such as `delete` and `host retire`, are exposed only with `--allow-destructive`; your MCP client's tool approval then takes the place of the prompt. See `mcrl mcp --help`.
+
+Claude Code:
+
+```sh
+claude mcp add mcrl -- mcrl mcp
+claude mcp add mcrl-prod -- mcrl --profile prod mcp    # a specific profile
+claude mcp add mcrl-write -- mcrl mcp --allow-write    # also allow updates
+```
+
+Claude Desktop (`claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "mcrl": {
+      "command": "/path/to/mcrl",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+The API key is resolved as usual: the key stored by `mcrl auth login`, or `MACKEREL_APIKEY` in `env`.
 
 ## Shell completion
 
