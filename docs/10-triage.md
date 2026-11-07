@@ -11,6 +11,7 @@
 - 何も変更しない。アラートを閉じる・メモを書くといった操作は、出力に載せた「次に叩くコマンド」を人やエージェントが選んで実行する
 - 原因の推定や要約の文章は作らない。事実（取得した値と、決まった規則で付ける注記）だけを返す。解釈は人とエージェントに任せる
 - 一部の取得に失敗しても（ログの権限がない、など）、取れたものは返す
+- ログ・トレースは、指定された OpenTelemetry のサービスについてだけ取る。アラートからたどる手がかりがないため（[ログ・トレース](#ログトレース)）
 
 ## audit との違い
 
@@ -37,8 +38,11 @@ mcrl triage 5VhFXR2a8mC
 mcrl triage --service web
 mcrl triage --host web-3 --window 30m
 
-# 重い取得を省く・人が読む用に絞る
-mcrl triage --skip logs,traces --jq '.groups[] | [.status, .monitor.name, (.alerts | length)] | @tsv'
+# OpenTelemetry のサービス（service.name）のエラーログ・トレースも並べる
+mcrl triage --otel-service checkout-api --otel-service payment
+
+# 人が読む用に絞る
+mcrl triage --jq '.groups[] | [.status, .monitor.name, (.alerts | length)] | @tsv'
 ```
 
 フラグ:
@@ -51,9 +55,9 @@ mcrl triage --skip logs,traces --jq '.groups[] | [.status, .monitor.name, (.aler
 | `--window` | `15m` | アラートの開始時刻の前後どれだけを周辺情報として取るか |
 | `--max-groups` | `5` | 周辺情報まで取る監視の数。残りはアラートの一覧だけ載せる |
 | `--max-hosts` | `3` | 1 つの監視について、メトリクスや他の監視の状態を取るホストの数 |
-| `--max-samples` | `5` | ログ・トレースの見本の件数 |
+| `--max-samples` | `5` | ログ・トレースの見本の件数（サービスごと） |
 | `--skip` / `--only` | なし | 取る情報を選ぶ: `metrics`・`monitors`・`annotations`・`downtimes`・`logs`・`traces` |
-| `--log-service` | Mackerel のサービス名 | ログ・トレースを引くときの `serviceName`（[未決](#未決) T1） |
+| `--otel-service` | なし | ログ・トレースを取る OpenTelemetry のサービス（`service.name`。繰り返し・カンマ区切り可）。指定しなければログ・トレースは取らない |
 
 ## まとめ方
 
@@ -78,11 +82,8 @@ Mackerel のアラートグループ設定（`alertGroupSettings`）でまとめ
 | 最新のメトリクス時刻 | `alerts[].host.lastMetricAt` | `GET /tsdb/latest`（audit と同じ 3 つのメトリクス） | 疎通監視（`connectivity`）のアラート |
 | アノテーション | `context.annotations` | `GET /graph-annotations` | 監視の `service`・`scopes` か、ホストのロールからサービスが分かるとき |
 | 有効なダウンタイム | `context.downtimes` | `GET /downtimes`（1 回） | 監視・サービス・ロールがダウンタイムの範囲に入るとき |
-| ログ | `context.logs` | `POST /logs`（`log search --severity error+` と同じ条件、新しい順に `--max-samples` 件） | サービスが分かるとき |
-| トレース | `context.traces` | `POST /traces`（`trace list --status error --sort latency` と同じ条件、`--max-samples` 件） | サービスが分かるとき |
 
 - メトリクスは範囲内の点をそのまま返す（範囲が 30 分なら 1 分刻みで約 30 点）。しきい値と見比べられるよう、`monitor` の `warning`・`critical` はそのまま載せる
-- ログの本文は長いことがあるので、1 件あたりの `body` を一定の長さで切る（切ったら `"truncated": true`）。エージェントの文脈を食いつぶさないため
 
 ## 出力
 
@@ -104,18 +105,27 @@ Mackerel のアラートグループ設定（`alertGroupSettings`）でまとめ
         "metrics": [{"hostId": "...", "name": "...", "points": [{"time": 1794047820, "value": 91.0}]}],
         "otherMonitors": [{"hostId": "...", "monitorId": "...", "name": "cpu high", "status": "WARNING"}],
         "annotations": [{"title": "deploy a1b2c3d", "from": 1794048500, "to": 1794048620, "service": "web"}],
-        "downtimes": [],
-        "logs": {"serviceName": "web", "samples": [{"timestamp": "...", "severity": "error", "body": "...", "...": "API の形のまま", "truncated": false}]},
-        "traces": {"serviceName": "web", "samples": [{"traceId": "...", "title": "[HTTP]GET", "traceLatencyMillis": 2100, "...": "API の形のまま"}]}
+        "downtimes": []
       },
       "notes": [
         {"kind": "recent-annotation", "message": "an annotation \"deploy a1b2c3d\" started 3m before the alert"}
       ],
       "next": [
         "mcrl alert get <id> --expand",
-        "mcrl metric get --host web-3 --name ... --since 3h",
-        "mcrl log search --service web --since 30m --severity error+",
-        "mcrl trace list --service web --since 30m --status error --sort latency"
+        "mcrl metric get --host web-3 --name ... --since 3h"
+      ],
+      "errors": []
+    }
+  ],
+  "otel": [
+    {
+      "serviceName": "checkout-api",
+      "range": {"from": 1794047809, "to": 1794049200},
+      "logs": [{"timestamp": "...", "severity": "error", "body": "...", "...": "API の形のまま", "truncated": false}],
+      "traces": [{"traceId": "...", "title": "[HTTP]GET", "traceLatencyMillis": 2100, "...": "API の形のまま"}],
+      "next": [
+        "mcrl log search --service checkout-api --since 30m --severity error+",
+        "mcrl trace list --service checkout-api --since 30m --status error --sort latency"
       ],
       "errors": []
     }
@@ -127,6 +137,15 @@ Mackerel のアラートグループ設定（`alertGroupSettings`）でまとめ
 - `--max-groups` を超えたグループは `context` を持たず、`alerts` と `notes`（追加の取得が要らないものだけ）を載せる
 - `next` は、このグループをさらに調べるためのコマンド。そのままコピーして実行できる形にする
 - `errors` には、取れなかった情報を `{"source": "logs", "message": "..."}` の形で入れる。権限不足・レート制限・期間の上限などで、ほかの情報まで捨てないため
+
+## ログ・トレース
+
+ログ・トレースの `service.name`（OpenTelemetry のリソース属性）と、Mackerel のサービス・ロールは **まったく別の概念** で、API にも両者の対応はない（[api-notes.md](api-notes.md#ログトレースapm実測-2026-11-07)）。名前が同じでも同じものを指すとは限らない。また、ログの検索には本文の条件しかなく、ホストで絞る手段もない。そのため、アラート（監視・ホスト・Mackerel のサービス）からログ・トレースを自動でたどることはしない。
+
+- `--otel-service` で指定されたサービスについてだけ、グループとは独立に `otel` に並べる。範囲は、周辺情報を取るグループの中で最も早い開始時刻を `t` として `[t - window, min(t + window, 今)]`（グループと同じ考え方で、トレース検索の 30 分の上限に収まる）
+- ログは `log search --severity error+` と同じ条件で新しい順に、トレースは `trace list --status error --sort latency` と同じ条件で、それぞれ `--max-samples` 件
+- ログの本文は長いことがあるので、1 件あたりの `body` を一定の長さで切る（切ったら `"truncated": true`）。エージェントの文脈を食いつぶさないため
+- 指定がなければ `otel` は空配列。対応表を設定ファイルに持たせる案（例: ロール `web:app` → `checkout-api`）は、使ってみて毎回同じ指定をするようなら検討する（[未決](#未決) T1）
 
 ### 注記（notes）
 
@@ -145,11 +164,10 @@ Mackerel のアラートグループ設定（`alertGroupSettings`）でまとめ
 
 ## リクエスト数と所要時間
 
-一覧の取得は 1 回ずつで使い回す（audit と同じ）。グループごとの取得は、ホストあたり最大 2 回（メトリクス・他の監視の状態）、サービスあたり最大 3 回（アノテーション・ログ・トレース）。
+一覧の取得は 1 回ずつで使い回す（audit と同じ）。グループごとの取得は、ホストあたり最大 2 回（メトリクス・他の監視の状態）と、Mackerel のサービスあたり 1 回（アノテーション）。ログ・トレースは `--otel-service` で指定したサービスあたり 2 回。
 
-- 既定（5 グループ、各 3 ホスト）では、最大でおよそ `一覧 5 + 5 ×（3 × 2 + 3）= 50` リクエスト
-- ログとトレースは API の上限が 1 リクエスト/秒なので、それだけで最大 10 秒ほどかかる。ほかの取得は並行して行う（同時に 4 本まで）。`internal/httpx` のレート制御はそのまま使う
-- 急ぐときは `--skip logs,traces` で数秒に収まる
+- 既定（5 グループ、各 3 ホスト、`--otel-service` なし）では、最大でおよそ `一覧 5 + 5 ×（3 × 2 + 1）= 40` リクエスト。並行して取るので（同時に 4 本まで）数秒で終わる
+- ログとトレースは API の上限が 1 リクエスト/秒なので、`--otel-service` 1 つにつき 2 秒ほど増える。`internal/httpx` のレート制御はそのまま使う
 
 ## MCP
 
@@ -173,7 +191,7 @@ Mackerel のアラートグループ設定（`alertGroupSettings`）でまとめ
 
 | # | 論点 | 案 |
 |---|---|---|
-| T1 | ログ・トレースの `serviceName`（OpenTelemetry の `service.name`）と Mackerel のサービスは別物（[api-notes.md](api-notes.md#ログトレースapm実測-2026-11-07)）。どう対応づけるか | 既定は同じ名前とみなし、`--log-service` で上書き。組織ごとの対応表をサービスのメタデータ（namespace `mcrl`）に置く案もある |
+| T1 | 毎回同じ `--otel-service` を指定するなら、アラートの対象（ロールなど）から OpenTelemetry のサービスへの対応表を設定ファイルに持たせるか | まずは明示的な指定だけ。自動の対応づけはしない（両者は別の概念で、API に対応がないため） |
 | T2 | ホストのメトリクス監視の `metric` は `cpu%` のような別名を取りうる。別名から `GET /hosts/<id>/metrics` の名前への対応 | 実 API で別名の一覧と対応を確かめる。対応が分からないものはメトリクスを載せず `errors` に理由を書く |
 | T3 | まとめる単位。監視ごとか、Mackerel のアラートグループ設定に従うか | まずは監視ごと。アラートグループ設定を使う組織が増えたら `--group-by alert-group` を検討 |
 | T4 | ダウンタイム中に監視の対象になったとき、アラートは作られるのか、通知だけ止まるのか | ドキュメントと実 API で確かめる。作られないなら `in-downtime` の注記は不要 |
