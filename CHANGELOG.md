@@ -1,5 +1,12 @@
 # Changelog
 
+## [v0.2.2](https://github.com/kga/mcrl/compare/v0.2.1...v0.2.2) - 2026-11-07
+
+### Other changes
+- Pin a profile per directory with MCRL_PROFILE instead of .mcrl.toml by @kga in https://github.com/kga/mcrl/pull/29
+- Split user guides from design documents by @kga in https://github.com/kga/mcrl/pull/31
+- Note in the README that mcrl is a proof of concept by @kga in https://github.com/kga/mcrl/pull/32
+
 ## [v0.2.1](https://github.com/kga/mcrl/compare/v0.2.0...v0.2.1) - 2026-11-07
 
 ### Other changes
