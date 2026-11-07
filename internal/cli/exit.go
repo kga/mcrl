@@ -23,6 +23,7 @@ const (
 	ExitInvalid     = 5
 	ExitRateLimited = 6
 	ExitNetwork     = 7
+	// 8 is ExitFindings (mcrl audit --fail-on, audit.go).
 	ExitInterrupted = 130
 )
 

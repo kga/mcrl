@@ -88,6 +88,12 @@ mcrl log tail --service web --jq '[.timestamp, .severity, .body] | @tsv'
 mcrl trace list --service web --min-latency 1s --sort latency
 mcrl apm http --service web --sort p95
 
+# Find forgotten settings: muted monitors, ended downtimes, hosts that stopped
+# sending metrics, unused channels, users without 2FA, ... (read-only)
+mcrl audit
+mcrl audit --check muted-monitor,user-without-mfa --jq '.[] | [.kind, .resource.name] | @tsv'
+mcrl audit --fail-on warning -o jsonl > audit.jsonl   # exit code 8 when a warning is found
+
 # Anything else
 mcrl api /org
 ```
@@ -105,7 +111,7 @@ mcrl api /org
 | Dashboards | `dashboard ...`, `annotation list/create/update/delete/wrap` |
 | Observability | `log search/tail/saved`, `trace list/get`, `apm http/db` |
 | Organization | `org get`, `org ip-restriction get/set`, `user list/remove`, `invitation ...`, `aws ...` |
-| Other | `api`, `mcp`, `auth`, `config`, `doctor`, `completion`, `version` |
+| Other | `audit`, `api`, `mcp`, `auth`, `config`, `doctor`, `completion`, `version` |
 
 Every command has examples in `mcrl <command> --help`, along with the API endpoint it calls and the API key permission it needs.
 
@@ -126,6 +132,7 @@ Every command has examples in `mcrl <command> --help`, along with the API endpoi
 | 5 | invalid input, conflict, or a name matching several resources |
 | 6 | rate limited |
 | 7 | network error |
+| 8 | `mcrl audit --fail-on` found something at or above the given severity |
 | 130 | interrupted |
 
 See `mcrl help environment` for environment variables.

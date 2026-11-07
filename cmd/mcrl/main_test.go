@@ -167,6 +167,11 @@ func newFakeAPI(logPath string) http.Handler {
 		}
 		switch r.Header.Get("X-Api-Key") {
 		case "good-key", "other-key":
+		case "audit-key":
+			// mcrl audit のテスト用の組織（audit_fake_test.go）
+			if serveAuditFixture(w, r) {
+				return
+			}
 		default:
 			writeJSON(w, 401, `{"error":{"message":"Authentication failed. Please try with valid Api Key."}}`)
 			return
