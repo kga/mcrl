@@ -5,6 +5,8 @@
 
 > ⚠️ 「未記載」と書いたものは公式ドキュメントに記述がないもの。実装前に実 API で確認し、このファイルを更新すること。
 
+> このファイルの「実測」は、公開されている API を、書いてある日付・条件で呼んで観測した結果で、Mackerel の公式な仕様ではない（将来変わりうるし、観測していない条件でも同じとは限らない）。公式のドキュメントやヘルプに書かれていることは、そちらへのリンクを添えて観測と区別する。サーバーの内部の実装は推測しない。
+
 ## 基本
 
 | 項目 | 内容 |
@@ -56,9 +58,9 @@
   - 例: `{"error":{"message":"Too many limit"}}`（`GET /alerts?limit=101`）
   - 例: `{"error":{"message":"Invalid Parameter: obj.serviceName error.path.missing, ..."}}`（`POST /logs` に `{}`）
 - メッセージの文言はエンドポイントごとにばらばら（`monitor is not found.`、`Host Not Found.`、`Alert not found` など）。**文言で分岐してはいけない**
-- **不正なキー・キーなしは全エンドポイントで 401**（`Authentication failed. Please try with valid Api Key.`）。ドキュメント上は多くが 403 と書かれているが、403 は「権限不足」「IP 制限外」の場合
+- **不正なキー・キーなしは、試したエンドポイントではすべて 401**（`Authentication failed. Please try with valid Api Key.`）。ドキュメント上は多くが 403 と書かれている。403 が返ったのは「権限不足」「IP 制限外」の場合
 - AWS インテグレーションはドキュメント上、Write 権限不足も 401 で返す（未実測）
-- **存在しない ID の GET が 400 になることがある**。形式が正しい存在しない ID は 404 だが、`xxxxxxxxxxx` のような ID は `400 Bad request.` になった（ID のデコードに失敗していると推測）。CLI では「ID による取得の 400」は「見つからない、または ID の形式が不正」として扱う
+- **存在しない ID の GET が 400 になることがある**。形式が正しい存在しない ID は 404 だが、`xxxxxxxxxxx` のような ID は `400 Bad request.` になった。CLI では「ID による取得の 400」は「見つからない、または ID の形式が不正」として扱う
 - 413: メタデータ 100KB 超過、アラートメモ 80KB 超過
 - 409: ダッシュボードの `urlPath` 重複
 
@@ -157,7 +159,7 @@
 - `PUT /hosts/<id>/role-fullnames` の後のホストの `roles` は、サービスごとのロール名の配列（順序は追加順ではない）
 - `POST /downtimes` / `PUT /downtimes/<id>` は入力に `id` を足したものを返す。`recurrence.until` もそのまま返る
 - `PUT /graph-annotations/<id>` は全項目の再指定が必要（単体を取得する API がないため、mcrl でもマージできない）
-- `POST /notification-groups` は `childNotificationGroupIds` がないと `400 Invalid Parameter: obj.childNotificationGroupIds error.path.missing`（ドキュメントでは必須と書かれていない）。mcrl は作成時に `childNotificationGroupIds` と `childChannelIds` の空配列を補う
+- `POST /notification-groups` は `childNotificationGroupIds` がないと `400 Invalid Parameter: obj.childNotificationGroupIds error.path.missing`（API ドキュメントでも `[optional]` の印がなく、必須の扱い。ドキュメントどおり）。mcrl は作成時に `childNotificationGroupIds` と `childChannelIds` の空配列を補う
 - IP 制限がないときの `GET /settings/ip-restriction/{web,api}` は `{"cidrs": []}`
 - `check report` で WARNING、`check run` で CRITICAL を報告しても、3 分待ってもアラートは作られなかった（原因未確認）
 
@@ -194,13 +196,19 @@
 
 ## ダウンタイムとアラート（実測 2026-11-07）
 
-同じ条件で必ず発火するホストのメトリック監視を 2 つ作り（擬似ホストの `loadavg5 > 0`、`duration: 1`）、片方だけを `monitorScopes` で対象にしたダウンタイム（40 分）を作った直後に観察した。
+公式のヘルプ（[ダウンタイム](https://mackerel.io/ja/docs/entry/howto/downtimes)）に次のことが書かれている。
+
+- ダウンタイム中は、対象のホストや監視ルールでアラートが発生しない（通知が止まるだけではない）
+- ダウンタイム中に抑制されたアラートは、ダウンタイムが**終了しても**発生しない。閾値を超えたまま終了した場合も同じ。死活監視だけは、通信が途絶えたままなら終了後にアラートが発生する
+- 通知の再送の設定がある監視は、ダウンタイムの開始前に発生したアラートでも、ダウンタイム中は通知が止まる
+
+そのうえで、同じ条件で必ず発火するホストのメトリック監視を 2 つ作り（擬似ホストの `loadavg5 > 0`、`duration: 1`）、片方だけを `monitorScopes` で対象にしたダウンタイム（40 分）を作った直後に観察した。
 
 - ダウンタイムの対象でない監視は 40 秒後にアラートになり、Email Broadcast の通知メールが届いた
-- **ダウンタイムの対象の監視には、ダウンタイム中（約 3 分半、条件は満たし続けていた）アラートが作られなかった**。通知メールも来なかった。つまりダウンタイムは通知だけでなく、アラートの作成そのものを止める
-- ダウンタイムを削除すると、30 秒後にアラートが作られ、通知メールが届いた
+- ダウンタイムの対象の監視には、ダウンタイム中（約 3 分半、条件は満たし続けていた）アラートが作られず、通知メールも来なかった。ヘルプのとおり
+- **期間の途中でダウンタイムを削除する**と、30 秒後にアラートが作られ、通知メールが届いた。削除の場合はヘルプに書かれていない。期間が来て**自然に終了する**場合は試していないので、ヘルプのとおり発生しないのかは確かめていない
 - 監視の作成・削除では Email Broadcast にメールは来なかった
-- 確かめていないこと: サービス・ロールを対象にしたダウンタイム、ダウンタイムの開始前から開いているアラートがダウンタイム中にどうなるか
+- 確かめていないこと: 自然に終了した場合、サービス・ロールを対象にしたダウンタイム、ダウンタイムの開始前から開いているアラートがダウンタイム中にどうなるか
 
 ## 期間の上限
 
