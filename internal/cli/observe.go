@@ -211,8 +211,9 @@ func (l *logFlags) bind(cmd *cobra.Command, f *cmdutil.Factory, tail bool) {
 	_ = cmd.RegisterFlagCompletionFunc("severity", cobra.FixedCompletions([]cobra.Completion{"trace+", "debug+", "info+", "warn+", "error+", "fatal"}, cobra.ShellCompDirectiveNoFileComp))
 }
 
-// body builds the POST /logs conditions (without the time range).
-func (l *logFlags) body(ctx context.Context, cmd *cobra.Command, c *mackerel.Client) (map[string]any, error) {
+// body builds the POST /logs conditions (without the time range). changed
+// tells which flags were given; the others are left to --saved or the API.
+func (l *logFlags) body(ctx context.Context, changed func(string) bool, c *mackerel.Client) (map[string]any, error) {
 	body := map[string]any{}
 	if l.saved != "" {
 		def, err := savedSearchDefinition(ctx, c, l.saved)
@@ -225,7 +226,7 @@ func (l *logFlags) body(ctx context.Context, cmd *cobra.Command, c *mackerel.Cli
 			}
 		}
 	}
-	ch := cmd.Flags().Changed
+	ch := changed
 	if ch("service") {
 		body["serviceName"] = l.service
 	}
@@ -270,6 +271,17 @@ func (l *logFlags) body(ctx context.Context, cmd *cobra.Command, c *mackerel.Cli
 		}
 	}
 	return body, nil
+}
+
+// setRange adds the time range, order and page size of a log search.
+func (l *logFlags) setRange(body map[string]any, from, to int64) {
+	body["from"], body["to"] = from, to
+	dir := "DESC"
+	if l.asc {
+		dir = "ASC"
+	}
+	body["order"] = map[string]string{"column": "TIMESTAMP", "direction": dir}
+	body["perPage"] = perPage(l.limit, 1000)
 }
 
 func savedSearchDefinition(ctx context.Context, c *mackerel.Client, ref string) (map[string]any, error) {
@@ -336,17 +348,11 @@ printed as each page arrives. The API allows 1 request per second, so large
 			if err != nil {
 				return err
 			}
-			body, err := l.body(cmd.Context(), cmd, c)
+			body, err := l.body(cmd.Context(), cmd.Flags().Changed, c)
 			if err != nil {
 				return err
 			}
-			body["from"], body["to"] = from, to
-			dir := "DESC"
-			if l.asc {
-				dir = "ASC"
-			}
-			body["order"] = map[string]string{"column": "TIMESTAMP", "direction": dir}
-			body["perPage"] = perPage(l.limit, 1000)
+			l.setRange(body, from, to)
 			if f.DryRun {
 				return dryRun(f, []request{post("/logs", body)})
 			}
@@ -391,7 +397,7 @@ already printed, may be missed.`, "Read", "POST /api/v0/logs"),
 			if err != nil {
 				return err
 			}
-			base, err := l.body(cmd.Context(), cmd, c)
+			base, err := l.body(cmd.Context(), cmd.Flags().Changed, c)
 			if err != nil {
 				return err
 			}
@@ -458,14 +464,88 @@ already printed, may be missed.`, "Read", "POST /api/v0/logs"),
 
 // ---- traces ----
 
+// traceFlags are the conditions of "trace list".
+type traceFlags struct {
+	service, namespace, env, traceID, spanName, version, status, issue string
+	since, until, minLatency, maxLatency, sort                         string
+	attrs, resAttrs                                                    []string
+	limit                                                              int
+	asc                                                                bool
+}
+
+// body builds the POST /traces request for the first page. changed tells
+// which optional flags were given.
+func (t *traceFlags) body(changed func(string) bool, from, to int64) (map[string]any, error) {
+	// ドキュメントには書かれていないが、API は 30 分を超える範囲を 400 にする（実測）
+	if time.Duration(to-from)*time.Second > maxAPMRange {
+		return nil, cmdutil.Usagef("the time range is longer than 30 minutes, the API's limit")
+	}
+	body := map[string]any{"serviceName": t.service, "from": from, "to": to}
+	for flag, kv := range map[string]struct {
+		key string
+		val *string
+	}{"namespace": {"serviceNamespace", &t.namespace}, "env": {"environment", &t.env}, "trace-id": {"traceId", &t.traceID},
+		"span-name": {"spanName", &t.spanName}, "version": {"version", &t.version}, "issue": {"issueFingerprint", &t.issue}} {
+		if changed(flag) {
+			body[kv.key] = *kv.val
+		}
+	}
+	if changed("status") {
+		s := strings.ToUpper(t.status)
+		if s != "OK" && s != "ERROR" {
+			return nil, cmdutil.Usagef("--status must be ok or error")
+		}
+		body["statusCode"] = s
+	}
+	for flag, kv := range map[string]struct {
+		key string
+		val *string
+	}{"min-latency": {"minLatencyMillis", &t.minLatency}, "max-latency": {"maxLatencyMillis", &t.maxLatency}} {
+		if changed(flag) {
+			d, err := timeexpr.ParseDuration(*kv.val)
+			if err != nil {
+				return nil, &cmdutil.UsageError{Err: err}
+			}
+			body[kv.key] = d.Milliseconds()
+		}
+	}
+	for key, vals := range map[string][]string{"attributes": t.attrs, "resourceAttributes": t.resAttrs} {
+		var conds []map[string]any
+		for _, a := range vals {
+			cond, err := parseWhere(a, false)
+			if err != nil {
+				return nil, err
+			}
+			conds = append(conds, cond)
+		}
+		if len(conds) > 0 {
+			body[key] = conds
+		}
+	}
+	col := map[string]string{"start": "START_AT", "latency": "LATENCY"}[strings.ToLower(t.sort)]
+	if col == "" {
+		return nil, cmdutil.Usagef("--sort must be start or latency")
+	}
+	dir := "DESC"
+	if t.asc {
+		dir = "ASC"
+	}
+	body["order"] = map[string]string{"column": col, "direction": dir}
+	body["perPage"] = perPage(t.limit, 100)
+	body["page"] = 1
+	return body, nil
+}
+
+// tracePages fetches the pages of a trace search, starting from body.
+func tracePages(ctx context.Context, c *mackerel.Client, body map[string]any) iter.Seq2[json.RawMessage, error] {
+	return mackerel.NumberedPages(func(page int) ([]byte, error) {
+		body["page"] = page
+		return c.PostJSON(ctx, "/traces", body)
+	})
+}
+
 func newTraceCmd(f *cmdutil.Factory) *cobra.Command {
-	var (
-		service, namespace, env, traceID, spanName, version, status, issue string
-		since, until, minLatency, maxLatency, sort                         string
-		attrs, resAttrs                                                    []string
-		limit                                                              int
-		asc                                                                bool
-	)
+	var t traceFlags
 	list := &cobra.Command{
 		Use:     "list --service <service> [flags]",
 		Aliases: []string{"ls"},
@@ -479,99 +559,42 @@ The time range is at most 30 minutes (the API's limit).
   mcrl trace list --service web --since 1h --min-latency 1s --sort latency --jq '.[] | [.traceId, .traceLatencyMillis, .title] | @tsv'`,
 		Args: cmdutil.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			from, to, err := timeRange(since, until)
+			from, to, err := timeRange(t.since, t.until)
 			if err != nil {
 				return err
 			}
-			// ドキュメントには書かれていないが、API は 30 分を超える範囲を 400 にする（実測）
-			if time.Duration(to-from)*time.Second > maxAPMRange {
-				return cmdutil.Usagef("the time range is longer than 30 minutes, the API's limit")
+			body, err := t.body(cmd.Flags().Changed, from, to)
+			if err != nil {
+				return err
 			}
-			body := map[string]any{"serviceName": service, "from": from, "to": to}
-			ch := cmd.Flags().Changed
-			for flag, kv := range map[string]struct {
-				key string
-				val *string
-			}{"namespace": {"serviceNamespace", &namespace}, "env": {"environment", &env}, "trace-id": {"traceId", &traceID},
-				"span-name": {"spanName", &spanName}, "version": {"version", &version}, "issue": {"issueFingerprint", &issue}} {
-				if ch(flag) {
-					body[kv.key] = *kv.val
-				}
-			}
-			if ch("status") {
-				s := strings.ToUpper(status)
-				if s != "OK" && s != "ERROR" {
-					return cmdutil.Usagef("--status must be ok or error")
-				}
-				body["statusCode"] = s
-			}
-			for flag, key := range map[string]string{"min-latency": "minLatencyMillis", "max-latency": "maxLatencyMillis"} {
-				if ch(flag) {
-					v, _ := cmd.Flags().GetString(flag)
-					d, err := timeexpr.ParseDuration(v)
-					if err != nil {
-						return &cmdutil.UsageError{Err: err}
-					}
-					body[key] = d.Milliseconds()
-				}
-			}
-			for flag, key := range map[string]string{"attr": "attributes", "resource-attr": "resourceAttributes"} {
-				vals, _ := cmd.Flags().GetStringArray(flag)
-				var conds []map[string]any
-				for _, a := range vals {
-					cond, err := parseWhere(a, false)
-					if err != nil {
-						return err
-					}
-					conds = append(conds, cond)
-				}
-				if len(conds) > 0 {
-					body[key] = conds
-				}
-			}
-			col := map[string]string{"start": "START_AT", "latency": "LATENCY"}[strings.ToLower(sort)]
-			if col == "" {
-				return cmdutil.Usagef("--sort must be start or latency")
-			}
-			dir := "DESC"
-			if asc {
-				dir = "ASC"
-			}
-			body["order"] = map[string]string{"column": col, "direction": dir}
-			body["perPage"] = perPage(limit, 100)
 			c, err := apiClient(cmd.Context(), f)
 			if err != nil {
 				return err
 			}
 			if f.DryRun {
-				body["page"] = 1
 				return dryRun(f, []request{post("/traces", body)})
 			}
-			seq := mackerel.NumberedPages(func(page int) ([]byte, error) {
-				body["page"] = page
-				return c.PostJSON(cmd.Context(), "/traces", body)
-			})
-			return emitItems(f, seq, limit)
+			return emitItems(f, tracePages(cmd.Context(), c, body), t.limit)
 		},
 	}
 	fl := list.Flags()
-	fl.StringVar(&service, "service", "", "service name (required)")
-	fl.StringVar(&namespace, "namespace", "", "service namespace")
-	fl.StringVar(&env, "env", "", "deployment environment")
-	fl.StringVar(&traceID, "trace-id", "", "trace ID")
-	fl.StringVar(&spanName, "span-name", "", "span name")
-	fl.StringVar(&version, "version", "", "service version")
-	fl.StringVar(&issue, "issue", "", "issue fingerprint")
-	fl.StringVar(&status, "status", "", "ok or error")
-	fl.StringVar(&minLatency, "min-latency", "", `minimum latency, e.g. "500ms", "2s"`)
-	fl.StringVar(&maxLatency, "max-latency", "", "maximum latency")
-	fl.StringArrayVar(&attrs, "attr", nil, "span attribute condition (repeatable)")
-	fl.StringArrayVar(&resAttrs, "resource-attr", nil, "resource attribute condition (repeatable)")
-	fl.StringVar(&since, "since", "15m", "start of the time range")
-	fl.StringVar(&until, "until", "now", "end of the time range")
-	fl.StringVar(&sort, "sort", "start", "start or latency")
-	fl.BoolVar(&asc, "asc", false, "ascending order")
-	fl.IntVar(&limit, "limit", 20, "maximum number of traces (0 = all)")
+	fl.StringVar(&t.service, "service", "", "service name (required)")
+	fl.StringVar(&t.namespace, "namespace", "", "service namespace")
+	fl.StringVar(&t.env, "env", "", "deployment environment")
+	fl.StringVar(&t.traceID, "trace-id", "", "trace ID")
+	fl.StringVar(&t.spanName, "span-name", "", "span name")
+	fl.StringVar(&t.version, "version", "", "service version")
+	fl.StringVar(&t.issue, "issue", "", "issue fingerprint")
+	fl.StringVar(&t.status, "status", "", "ok or error")
+	fl.StringVar(&t.minLatency, "min-latency", "", `minimum latency, e.g. "500ms", "2s"`)
+	fl.StringVar(&t.maxLatency, "max-latency", "", "maximum latency")
+	fl.StringArrayVar(&t.attrs, "attr", nil, "span attribute condition (repeatable)")
+	fl.StringArrayVar(&t.resAttrs, "resource-attr", nil, "resource attribute condition (repeatable)")
+	fl.StringVar(&t.since, "since", "15m", "start of the time range")
+	fl.StringVar(&t.until, "until", "now", "end of the time range")
+	fl.StringVar(&t.sort, "sort", "start", "start or latency")
+	fl.BoolVar(&t.asc, "asc", false, "ascending order")
+	fl.IntVar(&t.limit, "limit", 20, "maximum number of traces (0 = all)")
 	_ = list.MarkFlagRequired("service")
 	_ = list.RegisterFlagCompletionFunc("status", cobra.FixedCompletions([]cobra.Completion{"ok", "error"}, cobra.ShellCompDirectiveNoFileComp))
 	_ = list.RegisterFlagCompletionFunc("sort", cobra.FixedCompletions([]cobra.Completion{"start", "latency"}, cobra.ShellCompDirectiveNoFileComp))
