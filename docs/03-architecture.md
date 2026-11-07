@@ -83,7 +83,7 @@ func (c *Client) UpdateMonitor(ctx context.Context, id string, body json.RawMess
 
 `http.RoundTripper` を積み重ねて作る。外側から:
 
-1. **デバッグログ**: `--debug` で method・URL・ステータス・所要時間・ヘッダ・ボディを stderr に出す。`X-Api-Key` は `***` に置き換える
+1. **デバッグログ**: `--debug` で method・URL・ステータス・所要時間・ヘッダ・ボディを stderr に出す。`X-Api-Key` などの認証ヘッダと、JSON ボディの秘密情報（`secretKey`・`password`・`token` などのキー、`url` のホストより後ろ、外形監視の `headers`・`requestBody`）は `***` に置き換える
 2. **リトライ**:
    - 対象: 429、502、503、504、接続エラー
    - 待ち時間: `Retry-After` があればそれに従う。なければ指数バックオフ＋ジッタ（0.5s 開始、上限 30s）
