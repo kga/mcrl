@@ -78,7 +78,7 @@ mcrl のバイナリには、依存モジュール（MIT・BSD・Apache-2.0）�
 - `uses:` はタグ（完全な semver）で書く。lockfile があれば `uses:` に SHA を書く必要はない
 - 同じリポジトリの composite action・reusable workflow は `./` ではなく `$/` で呼ぶ（ランナーに checkout された内容ではなく呼び出し元と同じコミットのものが使われ、呼び出し元の lockfile が適用される。[参考](https://songmu.jp/riji/entry/2026-10-30-github-actions-lockfile.html)）。他リポジトリの reusable workflow（`jobs.<id>.uses`）は lockfile の対象外なので、使う場合は SHA で固定する
 - workflow 内で実行時に取ってくるツール（golangci-lint、goreleaser、govulncheck、gh 拡張）は lockfile の対象外なので、すべてバージョンを固定する
-- その他: `permissions` は既定 `contents: read` でジョブごとに最小限、`actions/checkout` は `persist-credentials: false`、`.github/` は CODEOWNERS でオーナーのレビュー必須
+- その他: `permissions` は既定 `contents: read` でジョブごとに最小限、`actions/checkout` は `persist-credentials: false`、`.github/` は CODEOWNERS でオーナーを担当にしている（一人で開発しているので、ルールセットではレビューと承認を必須にしていない。[repository-settings.md](repository-settings.md)）
 - リポジトリ設定で「Require lockfile」（Actions のポリシー）を有効にすると、lockfile に載っていない workflow の実行を止められる。設定の変更はオーナーが行う
 
 ### 自己更新
