@@ -19,6 +19,8 @@ Commands that open an editor (`edit`), run a local command (`check run`, `annota
 
 Choose the narrowest set that does the job, and pair it with a read-only API key where you can.
 
+When alerts fire, the `triage` tool is a good first call: it returns the open alerts grouped by monitor, with the hosts, other failing monitors, metrics, graph annotations and downtimes around them, plus `next` commands that the other tools can run. Pass `otel_service` to include error logs and traces of an OpenTelemetry service. See [Triaging alerts](usage.md#triaging-alerts).
+
 ## Setting it up
 
 Claude Code:

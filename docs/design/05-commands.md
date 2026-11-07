@@ -36,6 +36,7 @@ mcrl
 ├── apm         http / db
 ├── export / diff / apply   （宣言的管理、07-declarative.md。未実装）
 ├── audit       忘れられた設定・古くなった設定の棚卸し（参照のみ）
+├── triage      障害対応の最初の 1 コマンド（開いているアラートとその周辺、参照のみ）
 ├── api         生 API 呼び出し
 ├── mcp         MCP サーバー（AI エージェントにコマンドをツールとして公開）
 ├── open        Web コンソールを開く（未実装）
@@ -178,6 +179,15 @@ mcrl
 # 週 1 回の棚卸し。warning があれば終了コード 8
 mcrl audit --fail-on warning -o jsonl > audit.jsonl
 ```
+
+## 障害対応（triage）
+
+`triage` は、アラートが鳴ったときに最初に叩く参照だけのコマンド。設計と出力の形は [10-triage.md](10-triage.md)、決定は [decisions.md](decisions.md) D26。
+
+- 開いているアラートを監視ごとにまとめ、重い順の上位 `--max-groups` 件について、アラートの前後 `--window` のメトリクス・同じホストの他の監視・アノテーション・有効なダウンタイムを並べる
+- 判定の一部（ミュート・退役ホスト・メトリクスの途絶・有効なダウンタイム）は audit や `downtime list --active` と同じ関数を使う
+- ログ・トレースは `--otel-service` で指定した OpenTelemetry のサービスだけ取る
+- 一部の取得に失敗しても終了コード 0 で、`errors` に書く
 
 ## 横断機能
 

@@ -82,6 +82,11 @@ mcrl audit
 mcrl audit --check muted-monitor,user-without-mfa --jq '.[] | [.kind, .resource.name] | @tsv'
 mcrl audit --fail-on warning -o jsonl > audit.jsonl   # exit code 8 when a warning is found
 
+# What is going on right now: open alerts grouped by monitor, with the hosts,
+# other failing monitors, metrics, deploys and downtimes around them (read-only)
+mcrl triage
+mcrl triage --service web --otel-service checkout-api
+
 # Anything else
 mcrl api /org
 ```
@@ -94,7 +99,7 @@ mcrl api /org
 | Services | `service list/create/delete`, `role list/create/delete` |
 | Metrics | `metric get/latest/names/post`, `metadata list/get/set/delete` |
 | Monitoring | `monitor list/get/create/update/edit/delete/mute/unmute/template`, `check list/get/report/run` |
-| Alerts | `alert list/get/close/memo/logs`, `alert-group ...`, `downtime ...` |
+| Alerts | `alert list/get/close/memo/logs`, `alert-group ...`, `downtime ...`, `triage` |
 | Notifications | `channel ...`, `notification-group ...` (alias `ng`) |
 | Dashboards | `dashboard ...`, `annotation list/create/update/delete/wrap` |
 | Observability | `log search/tail/saved`, `trace list/get`, `apm http/db` |

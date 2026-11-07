@@ -4,7 +4,7 @@ Guides for using mcrl. For installation and a quick start, see the [README](../R
 
 | Guide | Contents |
 |---|---|
-| [Using mcrl](usage.md) | Command grammar, naming resources, stdin, times, output and `--jq`, creating and updating, confirmation, errors and exit codes, completion |
+| [Using mcrl](usage.md) | Command grammar, naming resources, stdin, times, output and `--jq`, creating and updating, triaging alerts, confirmation, errors and exit codes, completion |
 | [Configuration and authentication](configuration.md) | Logging in, profiles, pinning a profile per directory, where the API key comes from, environment variables, files |
 | [Password managers and secret stores](secret-managers.md) | `api_key_command` and environment variables with 1Password, Vault, cloud secret stores and others; containers |
 | [AI agents (MCP)](ai-agents.md) | Running `mcrl mcp` for Claude Code and other MCP clients, what is exposed, the API key |

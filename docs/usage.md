@@ -87,6 +87,29 @@ echo 'warning: 85' | mcrl monitor update 'cpu high' -f -
 - `edit` opens the resource as YAML in `$VISUAL` or `$EDITOR`, shows the diff after you save, and sends it after you confirm.
 - `--dry-run` prints the request that would be sent and stops.
 
+## Triaging alerts
+
+`mcrl triage` gathers, in one read-only call, what you look at first when alerts fire. It changes nothing and reports facts, not a diagnosis; it is meant for the start of an incident, from a terminal or as an MCP tool.
+
+```sh
+mcrl triage                                   # every open alert
+mcrl triage 5VhFXR2a8mC                       # one alert, with its status history
+mcrl triage --service web --status critical
+mcrl triage --otel-service checkout-api       # also error logs and traces of an OpenTelemetry service
+mcrl triage --jq '.groups[] | [.status, .monitor.name, (.alerts | length)] | @tsv'
+```
+
+- Alerts are grouped by monitor. Groups are ordered by their heaviest status (`CRITICAL`, `WARNING`, `UNKNOWN`), then by their newest alert.
+- The first `--max-groups` groups (default 5) get a `context`, read from `--window` (default `15m`) before the group's earliest alert to `--window` after it (or now): the monitored metrics, other monitors that are not OK on the same hosts, graph annotations, and downtimes in effect. Hosts are read for up to `--max-hosts` per group (default 3), newest alerts first.
+- Rate monitors (`cpu%`, `memory%`, `swap%`, `disk%`) have no metric of their own, so their source metrics are shown (`cpu.idle.percentage`, `memory.used` and `memory.total`, and so on); the alert's `value` has the rate.
+- `notes` flag what rules can tell: a muted monitor, a downtime in effect, a retired or stopped host, a connectivity alert whose host stopped sending metrics before it, an annotation (such as a deploy) in the range, several hosts on one monitor, other monitors failing on the same host.
+- `next` lists mcrl commands to look further, ready to run.
+- Logs and traces are read only for the OpenTelemetry services given with `--otel-service`, because their service names have nothing to do with Mackerel services and roles. Traces cover at most 30 minutes, so keep `--window` at `15m` or less to get them.
+- `--skip` and `--only` choose among `metrics`, `monitors`, `annotations`, `downtimes`, `logs` and `traces`.
+- When some of the context cannot be read (no permission, a rate limit), the rest is still returned with the failure in the group's `errors`, and the exit code is 0.
+
+`mcrl triage --help` describes every field of the output.
+
 ## Confirmation and scripts
 
 Commands that delete or cannot be undone (`delete`, `host retire`, `user remove`, ...) ask for confirmation. mcrl asks only when stdin and stderr are both terminals; anywhere else such a command fails with exit code 2 unless you pass `--yes`. `--no-input` (or `MCRL_NO_INPUT`) turns every prompt off, for CI and agents.
