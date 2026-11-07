@@ -12,7 +12,3 @@ Guides for using mcrl. For installation and a quick start, see the [README](../R
 | [Command reference](reference/README.md) | Every command with its flags, examples, API endpoints and permission; which command calls each API endpoint. Generated from `--help` |
 
 Everything here is also in `mcrl <command> --help`, `mcrl help environment` and `mcrl help exit-codes`.
-
-## Design documents
-
-The design documents and decision log (in Japanese) are in [design/](design/README.md). They describe why mcrl works the way it does, and include ideas that are not implemented yet; these guides describe what mcrl does today.

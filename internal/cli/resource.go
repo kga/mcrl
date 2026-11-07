@@ -70,8 +70,7 @@ const (
 // "{a,b}" stands for several paths, and a note may follow in parentheses
 // ("GET /api/v0/monitors (--expand)"). The endpoints are read back by
 // apiOf, which the endpoint coverage test and docs/reference use, so the
-// help text is the only place a command declares the API it calls
-// (docs/design/decisions.md D21).
+// help text is the only place a command declares the API it calls.
 func withAPI(long, permission string, endpoints ...string) string {
 	return strings.TrimSpace(long) + "\n\n" + apiLinePrefix + strings.Join(endpoints, ", ") + "\n" + permLinePrefix + permission
 }

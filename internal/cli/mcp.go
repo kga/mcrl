@@ -23,7 +23,9 @@ import (
 	"github.com/kga/mcrl/internal/cli/cmdutil"
 )
 
-// mcpKind decides when a command is exposed as an MCP tool (docs/design/decisions.md D20).
+// mcpKind decides when a command is exposed as an MCP tool: read-only by
+// default, writes with --allow-write, and commands that ask for
+// confirmation on the command line only with --allow-destructive.
 type mcpKind int
 
 const (

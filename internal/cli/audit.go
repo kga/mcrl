@@ -18,8 +18,8 @@ import (
 	"github.com/kga/mcrl/internal/timeexpr"
 )
 
-// mcrl audit lists stale or forgotten settings (docs/design/decisions.md D22).
-// It only reads.
+// mcrl audit lists stale or forgotten settings. It only reads. Its output
+// and exit code 8 are meant for cron and CI.
 
 const (
 	severityInfo    = "info"

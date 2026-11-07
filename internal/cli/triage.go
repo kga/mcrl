@@ -23,7 +23,7 @@ import (
 )
 
 // mcrl triage gathers, in one read-only command, what is looked at in the
-// first minutes of an incident (docs/design/10-triage.md): open alerts
+// first minutes of an incident (docs/usage.md): open alerts
 // grouped by monitor, and around them the hosts, other failing monitors,
 // metrics, graph annotations, downtimes, and optionally logs and traces.
 // It reports facts and rule-based notes, never a guess at the cause.
@@ -51,8 +51,8 @@ const (
 )
 
 // triageRateSources maps a rate ("%") monitor's metric to the metrics it is
-// computed from. The rate itself cannot be read as a metric (404); the
-// alert's value has it (docs/design/api-notes.md).
+// computed from. Reading the rate itself as a host metric returned 404 when
+// tried; the alert's value has it.
 var triageRateSources = map[string][]string{
 	"cpu%":    {"cpu.idle.percentage"},
 	"memory%": {"memory.used", "memory.total"},

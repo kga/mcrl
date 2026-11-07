@@ -190,7 +190,8 @@ func decodeMap(raw json.RawMessage) (map[string]any, error) {
 	return m, nil
 }
 
-// addNoRefetch registers --no-refetch (docs/design/decisions.md D12).
+// addNoRefetch registers --no-refetch, which prints the API's own answer
+// instead of fetching the resource again after an update.
 func addNoRefetch(cmd *cobra.Command, v *bool) {
 	cmd.Flags().BoolVar(v, "no-refetch", false, `print the API response ({"success": true}) instead of fetching the updated resource`)
 }
