@@ -13,7 +13,7 @@ import (
 	"github.com/kga/mcrl/internal/mackerel"
 )
 
-// Exit codes. See docs/04-cli-ux.md.
+// Exit codes. See docs/design/04-cli-ux.md.
 const (
 	ExitOK          = 0
 	ExitError       = 1

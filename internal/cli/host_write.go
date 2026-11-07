@@ -55,7 +55,7 @@ func hostIDs(hs []resolvedHost) []string {
 	return ids
 }
 
-// refetchHosts prints the hosts after an update (docs/decisions.md D12).
+// refetchHosts prints the hosts after an update (docs/design/decisions.md D12).
 func refetchHosts(cmd *cobra.Command, f *cmdutil.Factory, c *mackerel.Client, ids []string) error {
 	items := make([]json.RawMessage, 0, len(ids))
 	for _, id := range ids {

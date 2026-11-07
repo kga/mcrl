@@ -179,7 +179,7 @@ Mackerel のアラートグループ設定（`alertGroupSettings`）でまとめ
 
 - `internal/cli/triage.go` に置く。アラートの展開（`expandAlerts`、`monitorIndex`）、audit の判定（ミュート・退役・メトリクスの途絶）、`log search`・`trace list` のリクエストの組み立ては、今のコードを関数として共有する
 - テストは偽 API の txtar で、グループのまとめ方・上限・一部の取得の失敗（`errors` に入って終了コード 0）を確かめる
-- 実 API では、検証用組織の擬似ホスト（[mcrl-fake-host-1](../dev/fake-host/)）を止めて疎通監視のアラートを起こし、`metrics-stopped` が付くことを確かめる
+- 実 API では、検証用組織の擬似ホスト（[mcrl-fake-host-1](../../dev/fake-host/)）を止めて疎通監視のアラートを起こし、`metrics-stopped` が付くことを確かめる
 
 ## 作らないもの
 

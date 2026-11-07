@@ -23,7 +23,7 @@ import (
 	"github.com/kga/mcrl/internal/cli/cmdutil"
 )
 
-// mcpKind decides when a command is exposed as an MCP tool (docs/decisions.md D20).
+// mcpKind decides when a command is exposed as an MCP tool (docs/design/decisions.md D20).
 type mcpKind int
 
 const (

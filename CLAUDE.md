@@ -1,6 +1,10 @@
 # mcrl
 
-Mackerel API のための新しい CLI。設計資料は `docs/`（入口は `docs/README.md`）。
+Mackerel API のための新しい CLI。
+
+- 設計資料（日本語）は `docs/design/`（入口は `docs/design/README.md`）
+- 利用者向けの文書（英語）は `docs/`（入口は `docs/README.md`）。今の動きだけを書き、構想は書かない。コマンドの動きを変えたら合わせて直す
+- コマンドリファレンス `docs/reference/` は `mise run docs` で生成する（手で編集しない）
 
 ## 厳守
 
@@ -9,9 +13,9 @@ Mackerel API のための新しい CLI。設計資料は `docs/`（入口は `do
 
 ## ドキュメント
 
-- 設計ドキュメントは日本語で書く
-- 判断が決まったら `docs/decisions.md` に日付と理由を記録する
-- 実 API で確かめた事実は `docs/api-notes.md` に反映する
+- 設計ドキュメントは日本語、利用者向けの文書・README・ヘルプは英語で書く
+- 判断が決まったら `docs/design/decisions.md` に日付と理由を記録する
+- 実 API で確かめた事実は `docs/design/api-notes.md` に反映する
 
 ## 開発の流れ
 
@@ -26,7 +30,7 @@ Mackerel API のための新しい CLI。設計資料は `docs/`（入口は `do
     - `feature`: 機能追加（マイナーバージョンが上がる）
     - `breaking-change`: 互換性を壊す変更（メジャーバージョンが上がる）
     - ラベルなし: 修正・内部変更（パッチバージョン）
-- リリースは tagpr で行う（`docs/08-quality-release.md`）。リリース PR をマージするとタグが打たれ、`release.yml` がテスト・ビルド・公開まで進める
-- GitHub の設定は `docs/repository-settings.md` にまとめてある
+- リリースは tagpr で行う（`docs/design/08-quality-release.md`）。リリース PR をマージするとタグが打たれ、`release.yml` がテスト・ビルド・公開まで進める
+- GitHub の設定は `docs/design/repository-settings.md` にまとめてある
 - `.github/workflows/` を変えたら `gh actions-lock` で `actions.lock` を更新して同じ PR に含める。同じリポジトリの action・reusable workflow は `./` ではなく `$/` で呼ぶ
 - 実 API での確認は検証用組織だけで行い、作ったリソースは片付ける。API キーは `mise.local.toml` の `MACKEREL_APIKEY`（Read）と `MACKEREL_APIKEY_WRITE`（Write、擬似ホストと更新系の確認用）

@@ -1,6 +1,7 @@
 # mcrl 設計ドキュメント
 
-Mackerel API のための新しい CLI「mcrl」の設計資料。
+Mackerel API のための新しい CLI「mcrl」の設計資料。なぜそう作ったか・何を決めたかを残す場所で、まだ実装していない構想も含む。
+利用者向けの文書（英語、今の mcrl の動き）は [docs/](../README.md) にある（[decisions.md](decisions.md) D25）。
 
 | ドキュメント | 内容 | ステータス |
 |---|---|---|
@@ -9,7 +10,7 @@ Mackerel API のための新しい CLI「mcrl」の設計資料。
 | [03-architecture.md](03-architecture.md) | パッケージ構成・API クライアント・HTTP 層・ライブラリ | 提案 |
 | [04-cli-ux.md](04-cli-ux.md) | 文法・グローバルフラグ・出力・入力・名前解決・時刻・終了コード | 提案 |
 | [05-commands.md](05-commands.md) | コマンド体系と設計の意図 | 提案 |
-| [reference/](reference/README.md) | コマンドリファレンスとエンドポイント対応表（生成物、`mise run docs`） | 自動生成 |
+| [reference/](../reference/README.md) | コマンドリファレンスとエンドポイント対応表（生成物、`mise run docs`） | 自動生成 |
 | [06-auth-config.md](06-auth-config.md) | プロファイル・API キーの保存と解決・設定ファイル | 提案 |
 | [07-declarative.md](07-declarative.md) | export / diff / apply | 構想 |
 | [08-quality-release.md](08-quality-release.md) | テスト・配布・互換性・セキュリティ | 提案 |

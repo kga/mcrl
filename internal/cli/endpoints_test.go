@@ -10,7 +10,7 @@ import (
 )
 
 // Every endpoint of the Mackerel API has a command, or is listed in
-// endpointsLeftToAPI with the reason it has none (docs/decisions.md D21).
+// endpointsLeftToAPI with the reason it has none (docs/design/decisions.md D21).
 func TestEndpointCoverage(t *testing.T) {
 	root := NewRootCmd(&cmdutil.Factory{IO: &cmdutil.IOStreams{}})
 	uses, errs := endpointCoverage(root)

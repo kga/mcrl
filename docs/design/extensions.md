@@ -89,7 +89,7 @@ mcrl の本体に入れない機能（通知の避難訓練、監視しきい値
 
 ## 作り方
 
-最小の例は [examples/extensions/mcrl-hello](../examples/extensions/mcrl-hello/mcrl-hello)。
+最小の例は [examples/extensions/mcrl-hello](../../examples/extensions/mcrl-hello/mcrl-hello)。
 
 ```sh
 #!/bin/sh

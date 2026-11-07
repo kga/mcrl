@@ -1,5 +1,5 @@
 // Package output writes command results. mcrl only emits JSON and JSONL
-// (docs/decisions.md D6): indented and colored on a TTY, compact otherwise.
+// (docs/design/decisions.md D6): indented and colored on a TTY, compact otherwise.
 package output
 
 import (

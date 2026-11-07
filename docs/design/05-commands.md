@@ -4,8 +4,8 @@
 
 コマンドの構成と、それぞれをなぜその形にしたかを書く。共通の約束（出力・名前解決・時刻）は [04-cli-ux.md](04-cli-ux.md)。
 
-**フラグ・使用例・呼ぶ API・必要な権限は、コマンドのヘルプから生成した [reference/](reference/README.md) を正とする**（`mise run docs` で生成。[decisions.md](decisions.md) D21）。
-どの API エンドポイントをどのコマンドが使うかは [reference/endpoints.md](reference/endpoints.md)。全エンドポイントにコマンドがあることはテスト（`TestEndpointCoverage`）で確かめている。
+**フラグ・使用例・呼ぶ API・必要な権限は、コマンドのヘルプから生成した [reference/](../reference/README.md) を正とする**（`mise run docs` で生成。[decisions.md](decisions.md) D21）。
+どの API エンドポイントをどのコマンドが使うかは [reference/endpoints.md](../reference/endpoints.md)。全エンドポイントにコマンドがあることはテスト（`TestEndpointCoverage`）で確かめている。
 
 ## 全体図
 

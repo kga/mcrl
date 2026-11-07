@@ -1,7 +1,7 @@
 // Package mackerel is a thin Mackerel API client on top of httpx.
 //
 // It works on raw JSON so that fields unknown to mcrl are never dropped
-// (docs/03-architecture.md). Typed access is limited to what mcrl itself
+// (docs/design/03-architecture.md). Typed access is limited to what mcrl itself
 // needs: IDs and names for resolution, and filter fields.
 package mackerel
 
@@ -119,7 +119,7 @@ func (e *AmbiguousError) Error() string {
 }
 
 // AsNotFound converts the 400/404 of a GET by ID into NotFoundError. The API
-// returns 400 instead of 404 for IDs that do not decode (docs/api-notes.md).
+// returns 400 instead of 404 for IDs that do not decode (docs/design/api-notes.md).
 func AsNotFound(err error, kind, ref string) error {
 	var ae *httpx.APIError
 	if errors.As(err, &ae) && (ae.StatusCode == http.StatusNotFound || ae.StatusCode == http.StatusBadRequest) {

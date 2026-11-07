@@ -18,7 +18,7 @@ import (
 	"github.com/kga/mcrl/internal/timeexpr"
 )
 
-// mcrl audit lists stale or forgotten settings (docs/decisions.md D22).
+// mcrl audit lists stale or forgotten settings (docs/design/decisions.md D22).
 // It only reads.
 
 const (
