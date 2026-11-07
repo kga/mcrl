@@ -1006,7 +1006,9 @@ func (t *triager) notes(g *triageGroup) []triageNote {
 	}
 	for _, raw := range g.downtimes {
 		id, name := mackerel.StringField(raw, "id"), mackerel.StringField(raw, "name")
-		add("in-downtime", fmt.Sprintf("the downtime %q is in effect and covers this monitor", name), &triageResource{"downtime", id, name})
+		// ダウンタイム中は新しいアラートが作られない（api-notes.md）。今有効なら、アラートの後に始まった可能性が高い
+		add("in-downtime", fmt.Sprintf("the downtime %q is in effect now and covers this monitor; downtimes stop new alerts, so it most likely started after the alert opened (someone may be working on it)", name),
+			&triageResource{"downtime", id, name})
 	}
 	hosts := map[string]bool{}
 	for _, a := range g.alerts {
@@ -1298,7 +1300,9 @@ an "errors" entry.
 
 Notes:
   monitor-muted           the monitor is muted
-  in-downtime             a downtime in effect now covers the monitor
+  in-downtime             a downtime in effect now covers the monitor; since
+                          downtimes stop new alerts, it most likely started
+                          after the alert opened
   host-retired            the alert's host is retired or deleted
   host-not-working        the host is standby, maintenance or poweroff
   metrics-stopped         connectivity alert whose host last sent metrics

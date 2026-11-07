@@ -22,6 +22,9 @@ exec mcrl triage --now @1800000000 --jq '.groups[] | "\(.monitor.id) [\([.notes[
 cmp stdout want-notes.txt
 exec mcrl triage --now @1800000000 --jq '.groups[0].notes[1].message'
 stdout '^the host "off-1" last sent metrics at 2027-01-15T07:54:00Z, 1m before the alert opened$'
+# ダウンタイム中は新しいアラートが作られないので、今有効なダウンタイムはアラートの後に始まったとみなす
+exec mcrl triage --now @1800000000 --jq '.groups[1].notes[] | select(.kind == "in-downtime") | .message'
+stdout '^the downtime "web maintenance" is in effect now and covers this monitor; downtimes stop new alerts, so it most likely started after the alert opened'
 exec mcrl triage --now @1800000000 --jq '.groups[0].alerts[0].host'
 stdout '^\{"id":"hostOFF0001","isRetired":false,"lastMetricAt":1799999640,"name":"off-1","roles":\[\],"status":"poweroff"\}$'
 

@@ -55,7 +55,9 @@ an "errors" entry.
 
 Notes:
   monitor-muted           the monitor is muted
-  in-downtime             a downtime in effect now covers the monitor
+  in-downtime             a downtime in effect now covers the monitor; since
+                          downtimes stop new alerts, it most likely started
+                          after the alert opened
   host-retired            the alert's host is retired or deleted
   host-not-working        the host is standby, maintenance or poweroff
   metrics-stopped         connectivity alert whose host last sent metrics
