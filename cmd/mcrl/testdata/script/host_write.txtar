@@ -12,7 +12,7 @@ stderr 'want <service>:<role>'
 # host update: 今の値（入力に使える項目だけ）にフラグを重ねて送る
 exec mcrl host update web-1 --memo 'new memo' --no-refetch
 grep 'BODY \{"memo":"new memo","meta":\{\},"name":"web-1"\}' $WORK/requests.log
-stdout '^\{"id":"5Vf7Be7guuy"\}$'
+stdout '^\{"id":"exampleHst1"\}$'
 
 # host edit: status や roles などの読み取り専用の項目は出さず、送らない
 env EDITOR=fakeeditor

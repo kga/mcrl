@@ -127,7 +127,7 @@ func newHostGetCmd(f *cmdutil.Factory) *cobra.Command {
 		Long:    withAPI("Show a host.\n\n"+hostRefHelp, "Read", "GET /api/v0/hosts/<id>", "GET /api/v0/hosts?name=", "GET /api/v0/hosts-by-custom-identifier/<cid>"),
 		Example: `  mcrl host get web-1
   mcrl host get cid:i-0123456789abcdef0
-  mcrl host get 5Vf7Be7guuy --jq '.roles'`,
+  mcrl host get exampleHst1 --jq '.roles'`,
 		Args:              cmdutil.ExactArgs(1),
 		ValidArgsFunction: completeHosts(f),
 		RunE: func(cmd *cobra.Command, args []string) error {

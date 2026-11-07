@@ -232,20 +232,20 @@ func newFakeAPI(logPath string) http.Handler {
 		case route == "GET /api/v0/hosts":
 			switch r.URL.Query().Get("name") {
 			case "":
-				writeJSON(w, 200, `{"hosts":[{"id":"5Vf7Be7guuy","name":"web-1","status":"working","createdAt":1793970084},{"id":"5Vf7Be7guuz","name":"db-1","status":"standby","createdAt":1793970085}]}`)
+				writeJSON(w, 200, `{"hosts":[{"id":"exampleHst1","name":"web-1","status":"working","createdAt":1793970084},{"id":"exampleHst2","name":"db-1","status":"standby","createdAt":1793970085}]}`)
 			case "web-1":
-				writeJSON(w, 200, `{"hosts":[{"id":"5Vf7Be7guuy","name":"web-1","status":"working","createdAt":1793970084,"roles":{"web":["app"]}}]}`)
+				writeJSON(w, 200, `{"hosts":[{"id":"exampleHst1","name":"web-1","status":"working","createdAt":1793970084,"roles":{"web":["app"]}}]}`)
 			case "dup":
 				writeJSON(w, 200, `{"hosts":[{"id":"dupaaaaaaa1","name":"dup"},{"id":"dupaaaaaaa2","name":"dup"}]}`)
 			default:
 				writeJSON(w, 200, `{"hosts":[]}`)
 			}
-		case route == "GET /api/v0/hosts/5Vf7Be7guuy/monitored-statuses":
+		case route == "GET /api/v0/hosts/exampleHst1/monitored-statuses":
 			writeJSON(w, 200, `{"monitoredStatuses":[{"monitorId":"mon0000cpu1","status":"CRITICAL"},{"monitorId":"mon0000conn","status":"OK"}]}`)
-		case route == "GET /api/v0/hosts/5Vf7Be7guuy/metrics":
+		case route == "GET /api/v0/hosts/exampleHst1/metrics":
 			writeJSON(w, 200, `{"metrics":[{"time":1762390800,"value":0.5},{"time":1762390860,"value":1.5}]}`)
 		case route == "GET /api/v0/tsdb/latest":
-			writeJSON(w, 200, `{"tsdbLatest":{"5Vf7Be7guuy":{"loadavg5":{"time":1762390860,"value":1.5}}}}`)
+			writeJSON(w, 200, `{"tsdbLatest":{"exampleHst1":{"loadavg5":{"time":1762390860,"value":1.5}}}}`)
 		case route == "GET /api/v0/monitors":
 			writeJSON(w, 200, `{"monitors":[{"id":"mon0000conn","name":"connectivity","type":"connectivity"},{"id":"mon0000cpu1","name":"CPU high","type":"host"},{"id":"mon0000svc1","name":"latency","type":"service"}]}`)
 		case route == "GET /api/v0/monitors/mon0000cpu1":
@@ -258,13 +258,13 @@ func newFakeAPI(logPath string) http.Handler {
 				return
 			}
 			writeJSON(w, 200, `{"graphAnnotations":[{"id":"anno1","title":"deploy","service":"web","from":1,"to":2}]}`)
-		case route == "GET /api/v0/hosts/5Vf7Be7guuy":
-			writeJSON(w, 200, `{"host":{"id":"5Vf7Be7guuy","name":"web-1","status":"working","roles":{"web":["app"]}}}`)
+		case route == "GET /api/v0/hosts/exampleHst1":
+			writeJSON(w, 200, `{"host":{"id":"exampleHst1","name":"web-1","status":"working","roles":{"web":["app"]}}}`)
 		case strings.HasPrefix(route, "GET /api/v0/hosts/bulk"):
 			id := strings.TrimPrefix(r.URL.Path, "/api/v0/hosts/")
 			writeJSON(w, 200, `{"host":{"id":"`+id+`","name":"`+id+`"}}`)
-		case route == "POST /api/v0/hosts/5Vf7Be7guuy/status", route == "POST /api/v0/hosts/5Vf7Be7guuy/retire",
-			route == "PUT /api/v0/hosts/5Vf7Be7guuy/role-fullnames", route == "POST /api/v0/tsdb",
+		case route == "POST /api/v0/hosts/exampleHst1/status", route == "POST /api/v0/hosts/exampleHst1/retire",
+			route == "PUT /api/v0/hosts/exampleHst1/role-fullnames", route == "POST /api/v0/tsdb",
 			route == "POST /api/v0/services/web/tsdb", route == "POST /api/v0/monitoring/checks/report",
 			route == "POST /api/v0/graph-defs/create", route == "DELETE /api/v0/graph-defs":
 			success()
@@ -306,10 +306,10 @@ func newFakeAPI(logPath string) http.Handler {
 			writeJSON(w, 200, `{"id":"db000000001","title":"Overview","urlPath":"overview","memo":"","widgets":[],"createdAt":1,"updatedAt":2}`)
 		case route == "PUT /api/v0/dashboards/db000000001":
 			echo("db000000001")
-		case route == "PUT /api/v0/hosts/5Vf7Be7guuy/metadata/inventory", route == "POST /api/v0/settings/ip-restriction/api",
+		case route == "PUT /api/v0/hosts/exampleHst1/metadata/inventory", route == "POST /api/v0/settings/ip-restriction/api",
 			route == "POST /api/v0/invitations/revoke":
 			success()
-		case route == "GET /api/v0/hosts/5Vf7Be7guuy/metadata/inventory":
+		case route == "GET /api/v0/hosts/exampleHst1/metadata/inventory":
 			writeJSON(w, 200, `{"rack":"A1"}`)
 		case route == "GET /api/v0/settings/ip-restriction/api":
 			writeJSON(w, 200, `{"cidrs":["203.0.113.0/24"]}`)
@@ -321,8 +321,8 @@ func newFakeAPI(logPath string) http.Handler {
 			echo("dt000000001")
 		case route == "PUT /api/v0/graph-annotations/anno1":
 			echo("anno1")
-		case route == "POST /api/v0/hosts", route == "PUT /api/v0/hosts/5Vf7Be7guuy":
-			writeJSON(w, 200, `{"id":"5Vf7Be7guuy"}`)
+		case route == "POST /api/v0/hosts", route == "PUT /api/v0/hosts/exampleHst1":
+			writeJSON(w, 200, `{"id":"exampleHst1"}`)
 		case route == "POST /api/v0/logs":
 			var b struct {
 				PageCursor  *struct{ Cursor string } `json:"pageCursor"`
@@ -358,9 +358,9 @@ func newFakeAPI(logPath string) http.Handler {
 			writeJSON(w, 404, `{"error":{"message":"Host Not Found."}}`)
 		case route == "GET /api/v0/alerts":
 			if r.URL.Query().Get("nextId") == "" {
-				writeJSON(w, 200, `{"alerts":[{"id":"a1","status":"CRITICAL","monitorId":"mon0000cpu1","hostId":"5Vf7Be7guuy","type":"host"},{"id":"a2","status":"WARNING","monitorId":"mon0000svc1","type":"service"}],"nextId":"a2"}`)
+				writeJSON(w, 200, `{"alerts":[{"id":"a1","status":"CRITICAL","monitorId":"mon0000cpu1","hostId":"exampleHst1","type":"host"},{"id":"a2","status":"WARNING","monitorId":"mon0000svc1","type":"service"}],"nextId":"a2"}`)
 			} else {
-				writeJSON(w, 200, `{"alerts":[{"id":"a3","status":"CRITICAL","monitorId":"mon0000conn","hostId":"5Vf7Be7guuz","type":"connectivity"}]}`)
+				writeJSON(w, 200, `{"alerts":[{"id":"a3","status":"CRITICAL","monitorId":"mon0000conn","hostId":"exampleHst2","type":"connectivity"}]}`)
 			}
 		case route == "POST /api/v0/graph-annotations":
 			b, _ := io.ReadAll(r.Body)

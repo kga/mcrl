@@ -103,7 +103,7 @@ API key permission: Read
 Examples:
   mcrl host get web-1
   mcrl host get cid:i-0123456789abcdef0
-  mcrl host get 5Vf7Be7guuy --jq '.roles'
+  mcrl host get exampleHst1 --jq '.roles'
 ```
 
 ## mcrl host list

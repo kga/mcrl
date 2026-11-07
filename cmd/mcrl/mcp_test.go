@@ -146,7 +146,7 @@ func TestMCPReadOnly(t *testing.T) {
 		t.Fatalf("host_get: %s", out)
 	}
 	var host map[string]any
-	if err := json.Unmarshal([]byte(out), &host); err != nil || host["id"] != "5Vf7Be7guuy" {
+	if err := json.Unmarshal([]byte(out), &host); err != nil || host["id"] != "exampleHst1" {
 		t.Errorf("host_get returned %q", out)
 	}
 
@@ -290,7 +290,7 @@ func TestMCPConcurrentCalls(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			tool, args, want := "host_get", map[string]any{"host": "web-1", "jq": ".id"}, "5Vf7Be7guuy"
+			tool, args, want := "host_get", map[string]any{"host": "web-1", "jq": ".id"}, "exampleHst1"
 			if i%2 == 1 {
 				tool, args, want = "dashboard_list", map[string]any{"jq": ".[0].title"}, "Overview"
 			}

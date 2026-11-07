@@ -93,7 +93,7 @@ echo 'warning: 85' | mcrl monitor update 'cpu high' -f -
 
 ```sh
 mcrl triage                                   # every open alert
-mcrl triage 5VhFXR2a8mC                       # one alert, with its status history
+mcrl triage exampleAlr1                       # one alert, with its status history
 mcrl triage --service web --status critical
 mcrl triage --otel-service checkout-api       # also error logs and traces of an OpenTelemetry service
 mcrl triage --jq '.groups[] | [.status, .monitor.name, (.alerts | length)] | @tsv'

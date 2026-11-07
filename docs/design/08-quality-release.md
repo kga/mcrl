@@ -38,10 +38,14 @@ GoReleaser で作る（[decisions.md](decisions.md) D15。リポジトリが pri
 
 | 経路 | 内容 | 状態 |
 |---|---|---|
-| GitHub Releases | tar.gz / zip（darwin・linux・windows × amd64・arm64）、`checksums.txt`。各アーカイブに `LICENSE`・`README.md`・`completions/`（bash・zsh・fish） | v0.1.0 から。下書きで作り、オーナーが確認して公開 |
-| コンテナイメージ | `ghcr.io/kga/mcrl:<version>` と `latest`（linux/amd64・arm64）。distroless static（非 root）をダイジェストで固定 | v0.1.0 から |
+| GitHub Releases | tar.gz / zip（darwin・linux・windows × amd64・arm64）、`checksums.txt`。各アーカイブに `LICENSE`・`THIRD_PARTY_LICENSES`・`README.md`・`completions/`（bash・zsh・fish） | v0.1.0 から。`THIRD_PARTY_LICENSES` は v0.3.0 から |
+| コンテナイメージ | `ghcr.io/kga/mcrl:<version>` と `latest`（linux/amd64・arm64）。distroless static（非 root）をダイジェストで固定。`/usr/share/doc/mcrl/` に `LICENSE`・`THIRD_PARTY_LICENSES` | v0.1.0 から。ライセンス表示は v0.3.0 から |
 | Go | `go install github.com/kga/mcrl/cmd/mcrl@latest` | リポジトリを公開したら |
 | Homebrew / aqua / Scoop / WinGet / deb・rpm | | リポジトリを公開するときに検討 |
+
+### ライセンス表示
+
+mcrl のバイナリには、依存モジュール（MIT・BSD・Apache-2.0）と Go の標準ライブラリ・ランタイム（BSD）が入る。これらはバイナリで配布するときにもライセンス本文と著作権表示を添えることを求めるので、リリースのたびに `scripts/third-party-licenses.sh`（GoReleaser の before フック）が、リリースする全 OS の依存のライセンス（と NOTICE があればそれも）を `THIRD_PARTY_LICENSES` にまとめ、アーカイブとイメージに入れる。v0.2.2 までの配布物には入っていなかった（2026-11-08 に気づいて v0.3.0 から入れた）。
 
 リリースの手順（[tagpr](https://github.com/Songmu/tagpr)、[decisions.md](decisions.md) D16）:
 
@@ -74,7 +78,7 @@ GoReleaser で作る（[decisions.md](decisions.md) D15。リポジトリが pri
 - `uses:` はタグ（完全な semver）で書く。lockfile があれば `uses:` に SHA を書く必要はない
 - 同じリポジトリの composite action・reusable workflow は `./` ではなく `$/` で呼ぶ（ランナーに checkout された内容ではなく呼び出し元と同じコミットのものが使われ、呼び出し元の lockfile が適用される。[参考](https://songmu.jp/riji/entry/2026-10-30-github-actions-lockfile.html)）。他リポジトリの reusable workflow（`jobs.<id>.uses`）は lockfile の対象外なので、使う場合は SHA で固定する
 - workflow 内で実行時に取ってくるツール（golangci-lint、goreleaser、govulncheck、gh 拡張）は lockfile の対象外なので、すべてバージョンを固定する
-- その他: `permissions` は既定 `contents: read` でジョブごとに最小限、`actions/checkout` は `persist-credentials: false`、`.github/` は CODEOWNERS でオーナーのレビュー必須
+- その他: `permissions` は既定 `contents: read` でジョブごとに最小限、`actions/checkout` は `persist-credentials: false`、`.github/` は CODEOWNERS でオーナーを担当にしている（一人で開発しているので、ルールセットではレビューと承認を必須にしていない。[repository-settings.md](repository-settings.md)）
 - リポジトリ設定で「Require lockfile」（Actions のポリシー）を有効にすると、lockfile に載っていない workflow の実行を止められる。設定の変更はオーナーが行う
 
 ### 自己更新

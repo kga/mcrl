@@ -9,5 +9,6 @@ mise.local.toml
 /bin/
 /dist/
 
-# GoReleaser の before フックが作る補完スクリプト
+# GoReleaser の before フックが作る補完スクリプトとライセンス表示
 /completions/
+/THIRD_PARTY_LICENSES

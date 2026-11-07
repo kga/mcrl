@@ -291,8 +291,13 @@ var widgetLimits = map[string][4]int{
 	"alertStatus": {4, 3, 24, 32},
 }
 
-// validateDashboard checks the widget layout rules that the API does not
-// reject but the dashboard cannot display: 24 columns, sizes, no overlaps.
+// validateDashboard checks the layout rules of the API documents
+// (https://mackerel.io/api-docs/entry/dashboards#layout) before sending:
+// widgets stay within the 24-wide area, keep to the size limits of their
+// type (widgetLimits, the documents' table) and do not overlap. The
+// documents say a widget that breaks them "may not display in the position
+// expected" and do not say that the API rejects it, so mcrl reports the
+// problem itself.
 func validateDashboard(m map[string]any) error {
 	widgets, _ := m["widgets"].([]any)
 	type rect struct{ x, y, w, h int }
