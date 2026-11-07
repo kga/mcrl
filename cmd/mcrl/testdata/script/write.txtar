@@ -78,6 +78,21 @@ stdin plugin.txt
 exec mcrl metric post --service web -
 grep 'BODY \[\{"name":"custom.b","time":1762390800,"value":2\},\{"name":"custom.c","time":1762390860,"value":3\}\]' $WORK/requests.log
 
+# グラフ定義: 1 つのオブジェクトは配列にして送る。名前は custom. で始まる
+stdin graphdef.yaml
+exec mcrl metric graph-def create -f -
+stdout '"success": ?true'
+grep 'BODY \[\{"name":"custom.b","unit":"integer","metrics":\[\{"name":"custom.b.\*","isStacked":false\}\]\}\]' $WORK/requests.log
+! exec mcrl metric graph-def create -f bad-graphdef.json
+grep '^2$' $WORK/exitcode
+stderr 'graph definition 1: invalid name'
+exec mcrl metric graph-def delete custom.b --yes
+grep 'BODY \{"name":"custom.b"\}' $WORK/requests.log
+exec mcrl metric graph-def delete --service web 'custom.b.*' --yes
+grep 'DELETE /api/v0/services/web/graph-defs/custom.b.\*' $WORK/requests.log
+! exec mcrl metric graph-def delete custom.b
+stderr 'pass --yes'
+
 # check run は子の終了コードを状態にして報告し、その終了コードで終わる
 exec mcrl check run --host web-1 --name selftest -- mcrl version --jq .os
 grep '"status":"OK"' $WORK/requests.log
@@ -145,3 +160,11 @@ bulkhost028
 bulkhost029
 bulkhost030
 bulkhost031
+-- graphdef.yaml --
+name: custom.b
+unit: integer
+metrics:
+  - name: custom.b.*
+    isStacked: false
+-- bad-graphdef.json --
+[{"name": "b", "metrics": []}]

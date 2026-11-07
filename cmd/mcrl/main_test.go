@@ -216,7 +216,15 @@ func newFakeAPI(logPath string) http.Handler {
 			writeJSON(w, 200, `{"host":{"id":"`+id+`","name":"`+id+`"}}`)
 		case route == "POST /api/v0/hosts/5Vf7Be7guuy/status", route == "POST /api/v0/hosts/5Vf7Be7guuy/retire",
 			route == "PUT /api/v0/hosts/5Vf7Be7guuy/role-fullnames", route == "POST /api/v0/tsdb",
-			route == "POST /api/v0/services/web/tsdb", route == "POST /api/v0/monitoring/checks/report":
+			route == "POST /api/v0/services/web/tsdb", route == "POST /api/v0/monitoring/checks/report",
+			route == "POST /api/v0/graph-defs/create", route == "DELETE /api/v0/graph-defs":
+			success()
+		case route == "DELETE /api/v0/services/web/graph-defs/custom.b.*":
+			// 本物の API はグラフ名の "%2A" を "*" と解釈しない
+			if strings.Contains(r.URL.EscapedPath(), "%2A") {
+				writeJSON(w, 404, `{"error":{"message":"Graph is not found."}}`)
+				return
+			}
 			success()
 		case route == "POST /api/v0/hosts/bulk-update-statuses", route == "POST /api/v0/hosts/bulk-retire":
 			var b struct{ IDs []string }

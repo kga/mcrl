@@ -2,29 +2,31 @@
 
 ステータス: **提案（レビュー待ち）**
 
-全エンドポイントを覆うコマンドの一覧。共通の約束（出力・名前解決・時刻）は [04-cli-ux.md](04-cli-ux.md)。
-表の「API」列が空のものは、CLI が複数の API を組み合わせて提供する機能。
+コマンドの構成と、それぞれをなぜその形にしたかを書く。共通の約束（出力・名前解決・時刻）は [04-cli-ux.md](04-cli-ux.md)。
+
+**フラグ・使用例・呼ぶ API・必要な権限は、コマンドのヘルプから生成した [reference/](reference/README.md) を正とする**（`mise run docs` で生成。[decisions.md](decisions.md) D21）。
+どの API エンドポイントをどのコマンドが使うかは [reference/endpoints.md](reference/endpoints.md)。全エンドポイントにコマンドがあることはテスト（`TestEndpointCoverage`）で確かめている。
 
 ## 全体図
 
 ```
 mcrl
 ├── auth        login / logout / status / list / switch / token
-├── config      get / set / list / edit / path
+├── config      path / clear-cache（get / set / list / edit は未実装）
 ├── org         get / ip-restriction {get,set}
 ├── service     list / create / delete
 ├── role        list / create / delete
-├── host        list / get / create / update / edit / status / retire / role / monitor-status / open
+├── host        list / get / create / update / edit / status / retire / role {set,add,remove} / monitor-status / open（open は未実装）
 ├── metric      get / latest / post / names / graph-def {create,delete}
 ├── metadata    list / get / set / delete
-├── monitor     list / get / create / update / edit / delete / mute / unmute / template / open
+├── monitor     list / get / create / update / edit / delete / mute / unmute / template / open（open は未実装）
 ├── check       list / get / report / run
-├── alert       list / get / close / memo / logs / open
+├── alert       list / get / close / memo / logs / open（open は未実装）
 ├── downtime    list / get / create / update / edit / delete
 ├── alert-group list / get / create / update / edit / delete
-├── channel     list / get / create / update / delete
+├── channel     list / get / create / update / edit / delete
 ├── notification-group  list / get / create / update / edit / delete
-├── dashboard   list / get / create / update / edit / delete / open
+├── dashboard   list / get / create / update / edit / delete / open（open は未実装）
 ├── annotation  list / create / update / delete / wrap
 ├── user        list / remove
 ├── invitation  list / create / revoke
@@ -32,238 +34,156 @@ mcrl
 ├── log         search / tail / saved
 ├── trace       list / get
 ├── apm         http / db
-├── export / diff / apply   （宣言的管理、07-declarative.md）
+├── export / diff / apply   （宣言的管理、07-declarative.md。未実装）
 ├── api         生 API 呼び出し
-├── mcp         MCP サーバー（AI エージェントにツールとして公開）
-├── open        Web コンソールを開く
+├── mcp         MCP サーバー（AI エージェントにコマンドをツールとして公開）
+├── open        Web コンソールを開く（未実装）
 ├── doctor      設定・接続・権限の診断
 ├── completion  bash / zsh / fish / powershell
 └── version
 ```
 
+## 形の決め方
+
+- コマンドは `mcrl <リソース> <動詞>` の 2 段を基本にし、API のセクションとほぼ 1 対 1 に対応させる。3 段目は `host role`・`metric graph-def`・`org ip-restriction` のような明確な下位リソースだけ（[04-cli-ux.md](04-cli-ux.md)）
+- 動詞は全リソースで揃える: `list` / `get` / `create` / `update` / `edit` / `delete`
+  - `update` は「今の値にフラグや `-f` を重ねて送る」。全体置換の API（監視・ダッシュボードなど）でも、指定しなかった項目が消えないようにするため。丸ごと置き換えたいときは `--replace`
+  - `edit` は今の値を YAML にして `$EDITOR` で開き、差分を見せてから送る。読み取り専用の項目（`id`・`createdAt` など）は隠す
+  - `get` は単体取得 API がないリソース（ダウンタイム・通知チャンネル・通知グループ）でも、一覧から取り出して用意する。利用者が API の不揃いを意識しなくて済むように
+- ID だけでなく名前でも指定できる（ホスト名、監視名、ダッシュボードのタイトルなど）。名前から ID を引くのは CLI の仕事（[04-cli-ux.md](04-cli-ux.md)）
+- 更新系で API が `{"success": true}` しか返さないときは、取り直して更新後のリソースを出す（[decisions.md](decisions.md) D12）。取り直す API がないもの（グラフ定義）は API の応答をそのまま出す
+- 消すと戻せない操作（削除・退役・IP 制限の変更など）は確認を求め、端末でなければ `--yes` がないと実行しない
+
 ## 認証・設定
 
-| コマンド | 説明 | API |
-|---|---|---|
-| `auth login [--profile p]` | API キーを対話入力（または `--with-token` で stdin）し、`GET /org` で検証してキーチェーンに保存 | `GET /org` |
-| `auth logout` | キーチェーンから削除 | |
-| `auth status` | 現在のプロファイル・組織名・キーの保存場所・ベース URL を表示 | `GET /org` |
-| `auth list` / `auth switch <p>` | プロファイル一覧・既定の切替 | |
-| `auth token` | API キーを stdout に出す（他ツールに渡す用。TTY では警告） | |
-| `config path` / `config clear-cache` | 読み書きするファイルの場所を表示 / 補完のキャッシュを削除（`config get/set/list/edit` は未実装。設定ファイルを直接編集する） | |
+- `auth login` は API キーを `GET /org` で検証してからキーチェーンに保存する。間違ったキーを保存したまま気づかない事故を防ぐ
+- `auth token` は他のツールにキーを渡すためのもの。端末に出すときは警告する
+- `config` は設定ファイルの場所の表示と補完キャッシュの削除だけ。設定ファイルは直接編集してもらう（`get` / `set` などは必要になったら作る）
 
 ## 組織
 
-| コマンド | 説明 | API |
-|---|---|---|
-| `org get` | 組織名・表示名 | `GET /org` |
-| `org ip-restriction get --target web\|api` | IP 制限の取得 | `GET /settings/ip-restriction/{web,api}` |
-| `org ip-restriction set --target web\|api --cidr ...` | IP 制限の設定。`--clear` で解除。**自分を締め出す設定は警告**（現在の送信元 IP が範囲外になる場合） | `POST /settings/ip-restriction/{web,api}` |
+- `org ip-restriction set` は、許可する範囲を確認画面に示し、自分も締め出されうることを明示する。API からも Web コンソールからも入れなくなるのを防ぐ
 
 ## サービス・ロール
 
-| コマンド | 説明 | API |
-|---|---|---|
-| `service list` | 一覧 | `GET /services` |
-| `service create <name> [--memo]` | 作成 | `POST /services` |
-| `service delete <name>` | 削除。**ロール・サービスメトリクス・監視・アノテーションが連鎖削除される** ことを確認画面で明示 | `DELETE /services/<name>` |
-| `role list --service s` | 一覧（`--service` は必須。全サービスのロール名は `service list` に含まれる） | `GET /services/<s>/roles` |
-| `role create <svc>:<role> [--memo]` | 作成 | `POST /services/<s>/roles` |
-| `role delete <svc>:<role>` | 削除 | `DELETE /services/<s>/roles/<r>` |
+- `service delete` はロール・サービスメトリクス・監視・アノテーションが **連鎖削除される** ことを確認画面で明示する
+- ロールは `<service>:<role>` の 1 引数で指定する。Web コンソールやロールのフルネームと同じ書き方
+- `role list` は `--service` 必須。全サービスのロール名は `service list` に含まれる
 
 ## ホスト
 
-| コマンド | 説明 | API |
-|---|---|---|
-| `host list` | `--service`、`--role`（複数可）、`--name`、`--status`（複数可、`all` で全て）、`--custom-identifier` | `GET /hosts` |
-| `host get <host>` | 詳細 | `GET /hosts/<id>`、`GET /hosts-by-custom-identifier/<cid>` |
-| `host create --name n` | エージェントなしでホストを登録（`--role`、`--check`、`--custom-identifier`、`--display-name`、`--memo`、または `-f`）。`meta` は既定で `{}`。登録後に取り直して出す | `POST /hosts` |
-| `host update <host>` | 今の値（入力に使える項目だけ）にフラグ・`-f` を重ねて送る。ロールは `host role` で変える | `GET` + `PUT /hosts/<id>` |
-| `host edit <host>` | name・displayName・customIdentifier・memo・meta・interfaces を YAML で編集 | `GET` + `PUT /hosts/<id>` |
-| `host status <status> <host>...` | ステータス変更。31 台以上は 30 台ずつに分けて送る | `POST /hosts/<id>/status`、`POST /hosts/bulk-update-statuses` |
-| `host retire <host>...` | 退役。30 台ずつに分割。確認画面に対象ホスト名を列挙 | `POST /hosts/<id>/retire`、`POST /hosts/bulk-retire` |
-| `host role set <host> <svc:role>...` | ロールを置き換え | `PUT /hosts/<id>/role-fullnames` |
-| `host role add/remove <host> <svc:role>...` | 現在のロールを取得して追加・削除 | `GET /hosts/<id>` + `PUT .../role-fullnames` |
-| `host monitor-status <host>` | 各監視のステータス。`--expand` で監視名を付加 | `GET /hosts/<id>/monitored-statuses` + `GET /monitors` |
-| `host open <host>` | Web コンソールのホスト画面を開く | |
+- `host create` はエージェントなしでホストを登録する。メトリクスやチェック監視をスクリプトから投稿する用途のため
+- `host status` / `host retire` は複数ホストを受け取り、API の一括エンドポイントに 30 台ずつ分けて送る。`retire` は戻せないので確認画面に対象ホスト名を並べる
+- ロールの変更は `host update` ではなく `host role` にまとめた。`PUT /hosts/<id>` は送らなかったロールを外さないため（[api-notes.md](api-notes.md)）、置き換え（`set`）と差分（`add` / `remove`）を別のコマンドにして意図を明確にする
+- `host monitor-status` は、ホストを対象にしている各監視の状態。監視名は `--expand` で付ける
 
 ## メトリクス
 
-| コマンド | 説明 | API |
-|---|---|---|
-| `metric get --host h --name n [--since --until]` | 時系列を取得 | `GET /hosts/<id>/metrics` |
-| `metric get --service s --name n ...` | サービスメトリクス | `GET /services/<s>/metrics` |
-| `metric latest --host h... [--name n...]` | 最新値 | `GET /tsdb/latest` |
-| `metric post --host h name=value[@time]...` | 投稿。stdin からは mackerel-agent のプラグイン形式（`name\tvalue\tepoch`）か JSON を受け付ける | `POST /tsdb` |
-| `metric post --service s ...` | サービスメトリクス投稿。**24 時間より古い値は API が黙って捨てるため、CLI 側で警告** | `POST /services/<s>/tsdb` |
-| `metric names --host h \| --service s` | メトリクス名一覧 | `GET /hosts/<id>/metric-names`、`GET /services/<s>/metric-names` |
-| `metric graph-def create -f` | グラフ定義の投稿 | `POST /graph-defs/create` |
-| `metric graph-def delete <name>` / `--service s <name>` | グラフ定義の削除 | `DELETE /graph-defs`、`DELETE /services/<s>/graph-defs/<name>` |
-
-```sh
-# cron から: 任意のコマンドの出力をそのままホストメトリクスとして投稿
-./my-plugin.sh | mcrl metric post --host "$(hostname)" -
-```
+- `metric get` / `metric names` / `metric post` は `--host` と `--service` でホストメトリクスとサービスメトリクスを切り替える。API は別々だが、利用者にとっては同じ操作のため
+- `metric post` は mackerel-agent のプラグイン形式（`name\tvalue\tepoch`）を stdin から受け付ける。既存のプラグインの出力をそのまま流し込めるように
+  ```sh
+  ./my-plugin.sh | mcrl metric post --host "$(hostname)" -
+  ```
+- **24 時間より古い値は API が黙って捨てる** ため、CLI 側で警告する
+- `metric graph-def` はカスタムメトリクスのグラフ定義の作成・削除。読み出す API がないので `list` / `get` はない
 
 ## メタデータ
 
-対象は `--host`、`--service`、`--role <svc:role>` のいずれか 1 つで指定する。
+- 対象は `--host`、`--service`、`--role <svc:role>` のどれか 1 つ。API はパスが 3 通りあるが、操作は同じなので 1 つのコマンドにまとめた
+- 値は任意の JSON（YAML でも可）。100KB を超えるものは送る前に拒否する
 
-| コマンド | 説明 | API |
-|---|---|---|
-| `metadata list --host h` | namespace の一覧 | `GET .../metadata` |
-| `metadata get --host h <ns>` | 値（任意の JSON）をそのまま出す。`Last-Modified` は `--expand` で付加 | `GET .../metadata/<ns>` |
-| `metadata set --host h <ns> -f value.json` | 登録・更新。100KB 超はクライアント側で拒否 | `PUT .../metadata/<ns>` |
-| `metadata delete --host h <ns>` | 削除 | `DELETE .../metadata/<ns>` |
+## 監視・チェック監視
 
-## 監視
-
-| コマンド | 説明 | API |
-|---|---|---|
-| `monitor list [--type t] [--name 部分一致]` | 一覧。フィルタはクライアント側 | `GET /monitors` |
-| `monitor get <monitor>` | 詳細 | `GET /monitors/<id>` |
-| `monitor create -f` | 作成 | `POST /monitors` |
-| `monitor update <monitor> -f` / `edit` | 更新（全体置換 API なので、`-f` の内容は現在値にマージしてから送る。`--replace` で丸ごと置換） | `GET` + `PUT /monitors/<id>` |
-| `monitor delete <monitor>` | 削除 | `DELETE /monitors/<id>` |
-| `monitor mute/unmute <monitor>...` | ミュート切替（現在値を取得し `isMute` だけ変えて PUT） | `GET` + `PUT /monitors/<id>` |
-| `monitor template <type>` | 種別ごとの雛形 YAML（`host`、`connectivity`、`service`、`external`、`expression`、`anomalyDetection`、`query`） | |
-| `monitor open <monitor>` | Web コンソールで開く | |
-
-## チェック監視
-
-| コマンド | 説明 | API |
-|---|---|---|
-| `check list` / `check get <id>` | チェック監視の一覧・取得 | `GET /monitoring/checks[/<id>]` |
-| `check report --host h --name n --status s --message m` | 1 件報告。stdin からの JSON 配列は 100 件ずつに分割 | `POST /monitoring/checks/report` |
-| `check run --host h --name n [--interval 10m] -- <command>` | コマンドを実行し、終了コード（0=OK、1=WARNING、2=CRITICAL、その他=UNKNOWN）と出力を報告 | `POST /monitoring/checks/report` |
-
-```sh
-# cron: バックアップの成否をチェック監視として報告
-mcrl check run --host "$(hostname)" --name backup -- /usr/local/bin/backup.sh
-```
+- `monitor create` / `update` はファイル（`-f`）が基本。監視は種類ごとに項目が多く、フラグに落とすと覚えきれないため。雛形は `monitor template <type>` で出す
+- `monitor mute` / `unmute` は今の設定を取得して `isMute` だけ変えて送る。全体置換の API で他の項目を壊さないため
+- `check report` はチェック監視の結果を 1 件報告する。`check run` はコマンドを実行し、その終了コード（0=OK、1=WARNING、2=CRITICAL、その他=UNKNOWN）と出力を報告する。cron のジョブを監視にするため
+  ```sh
+  mcrl check run --host "$(hostname)" --name backup -- /usr/local/bin/backup.sh
+  ```
 
 ## アラート
 
-| コマンド | 説明 | API |
-|---|---|---|
-| `alert list` | 既定は未解決のみ。`--all`（解決済み含む）、`--status`、`--type`、`--monitor`、`--host`、`--limit`（既定 100、`0` で無制限） | `GET /alerts` |
-| `alert get <id>` | 詳細。`--expand` で監視名・ホスト名を付加 | `GET /alerts/<id>` |
-| `alert close <id>... --reason r` | クローズ。`-` で stdin から複数 | `POST /alerts/<id>/close` |
-| `alert memo <id> <text>` | メモ更新（80KB 超はクライアント側で拒否） | `PUT /alerts/<id>` |
-| `alert logs <id>` | アラートの履歴 | `GET /alerts/<id>/logs` |
-| `alert open <id>` | Web コンソールで開く | |
+- `alert list` は既定で未解決のものだけ。障害対応で最初に見たいのはそれだから
+- `alert close` は `-` で stdin から複数の ID を受け取る。`alert list --jq` の結果をまとめて閉じられるように
 
 ## ダウンタイム
 
-| コマンド | 説明 | API |
-|---|---|---|
-| `downtime list [--active]` | 一覧。`--active` で現在有効なもの（クライアント側で計算） | `GET /downtimes` |
-| `downtime get <downtime>` | 一覧から抽出 | `GET /downtimes` |
-| `downtime create` | `--name`、`--start`（既定 `now`）、`--duration`、`--recurrence weekly:Mon,Wed`、`--interval`、`--until`、`--service`、`--role`、`--monitor`、各 `--exclude-*`。または `-f` | `POST /downtimes` |
-| `downtime update/edit/delete <downtime>` | | `PUT`/`DELETE /downtimes/<id>` |
-
-```sh
-# 今から 2 時間、web サービスの監視を止める
-mcrl downtime create --name "緊急メンテ" --duration 2h --service web
-```
+- `downtime create` は `--duration` と `--recurrence weekly:Mon,Wed` のような短い書き方で作れるようにする。API の形式（開始時刻の epoch、分単位の長さ、曜日の配列）を手で組み立てなくて済むように
+  ```sh
+  mcrl downtime create --name "緊急メンテ" --duration 2h --service web
+  ```
 
 ## アラートグループ・通知
 
-| コマンド | 説明 | API |
-|---|---|---|
-| `alert-group list/get/create/update/edit/delete` | アラートグループ設定 | `/alert-group-settings` |
-| `channel list` | 全種別を一覧（詳細が取れるのは email / slack / webhook のみ） | `GET /channels` |
-| `channel get <channel>` | 一覧から抽出 | `GET /channels` |
-| `channel create email\|slack\|webhook` | 種別ごとのフラグ。**API で作れない種別は指定時に明示的なエラー** | `POST /channels` |
-| `channel update/delete <channel>` | | `PUT`/`DELETE /channels/<id>` |
-| `notification-group list/get/create/update/edit/delete` | 通知グループ（別名 `ng`） | `/notification-groups` |
+- `channel create` は API で作れる種別（email / slack / webhook）だけ受け付け、それ以外は明示的なエラーにする。一覧には全種別が出るが、詳細が取れるのも上の 3 種別だけ
+- `notification-group` にはチャンネルや監視を名前で渡せる。別名は `ng`
 
 ## ダッシュボード・アノテーション
 
-| コマンド | 説明 | API |
-|---|---|---|
-| `dashboard list/get/create/update/edit/delete` | `get` は ID・URL パス・タイトルで指定可。作成・更新時にウィジェットの配置（24 列、重なり、サイズ上限）をクライアント側で検証 | `/dashboards` |
-| `dashboard open <dashboard>` | Web コンソールで開く | |
-| `annotation list --service s [--since --until]` | 一覧（既定は直近 7 日） | `GET /graph-annotations` |
-| `annotation create --service s --title t [--from --to --role --description]` | 作成（`--from`/`--to` 省略時は現在時刻） | `POST /graph-annotations` |
-| `annotation update/delete <id>` | | `PUT`/`DELETE /graph-annotations/<id>` |
-| `annotation wrap --service s --title t -- <command>` | コマンドの開始〜終了をアノテーションにする。失敗時はタイトルに結果を付記 | `POST` + `PUT /graph-annotations` |
+- ダッシュボードの作成・更新では、ウィジェットの配置（24 列、重なり、サイズ上限）を送る前に検証する。API のエラーより分かりやすく示すため
+- `annotation wrap` はコマンドの開始から終了までをアノテーションにする。デプロイなどをグラフ上に記録するため。失敗したらタイトルに結果を付記する
+  ```sh
+  mcrl annotation wrap --service web --title "deploy $(git rev-parse --short HEAD)" -- ./deploy.sh
+  ```
 
-```sh
-# デプロイをグラフ上に記録
-mcrl annotation wrap --service web --title "deploy $(git rev-parse --short HEAD)" -- ./deploy.sh
-```
+## ユーザー・招待・AWS インテグレーション
 
-## ユーザー・招待
-
-| コマンド | 説明 | API |
-|---|---|---|
-| `user list` | 一覧（権限・MFA・認証方式） | `GET /users` |
-| `user remove <user>` | 組織から外す。ID・メール・スクリーン名で指定 | `DELETE /users/<id>` |
-| `invitation list/create/revoke` | `create <email> --authority viewer` | `/invitations`、`POST /invitations/revoke` |
-
-## AWS インテグレーション
-
-| コマンド | 説明 | API |
-|---|---|---|
-| `aws list/get/create/update/edit/delete` | `secretKey` は出力しない・`edit` に含めない | `/aws-integrations` |
-| `aws external-id` | 外部 ID の発行 | `POST /aws-integrations-external-id` |
-| `aws excludable-metrics [--service EC2]` | 除外可能なメトリクス | `GET /aws-integrations-excludable-metrics` |
+- `user remove` は ID・メール・スクリーン名で指定できる
+- AWS インテグレーションの `secretKey` は出力しない・`edit` に含めない
 
 ## ログ・トレース・APM
 
-| コマンド | 説明 | API |
-|---|---|---|
-| `log search --service s` | `--since`（既定 15m）、`--until`、`--keyword`（複数）、`--severity`（`warn+` で WARN 以上）、`--trace-id`、`--where 'req.status>=500'`（body 属性の条件。型は値から推論、`:int` などで明示）、`--saved <名前>`（保存された検索を使う）、`--limit`、`--asc` | `POST /logs` |
-| `log tail --service s ...` | 新しいログを JSONL で出し続ける（1 req/s を守りつつポーリング） | `POST /logs` |
-| `log saved` | 保存された検索の一覧 | `GET /saved-log-searches` |
-| `trace list --service s` | `--since`、`--env`、`--span-name`、`--status error`、`--min-latency 500ms`、`--attr`、`--sort latency` | `POST /traces` |
-| `trace get <traceId>` | span の一覧（API の形式のまま） | `GET /traces/<id>` |
-| `apm http --service s` | HTTP サーバー統計（既定 直近 30 分、`--sort p95|sum|average|error-rate|requests`） | `GET /apm/http-server-stats` |
-| `apm db --service s` | DB クエリ統計（`--sort p95|sum|average|executions`、`--query` で部分一致） | `GET /apm/db-query-stats` |
-
-- 30 日を超える期間を指定した場合は API に送る前にエラー。APM の 30 分上限も同様
-
-```sh
-# 直近 1 時間の 5xx を追う
-mcrl log search --service web --since 1h --where 'res.status>=500' --severity error+
-```
+- `log search` / `trace list` は API が POST で受ける多数の検索条件をフラグにする。`--where 'res.status>=500'` のような条件式は型を値から推論する
+  ```sh
+  mcrl log search --service web --since 1h --where 'res.status>=500' --severity error+
+  ```
+- `log tail` は新しいログを JSONL で出し続ける。API の 1 req/s の制限を守ってポーリングする
+- 30 日を超える期間や APM の 30 分上限は、API に送る前にエラーにする
 
 ## 横断機能
 
-| コマンド | 説明 |
-|---|---|
-| `api <path>` | 生 API。`-X` でメソッド、`-f` で body、`-F key=value` で型付きフィールド（GET/DELETE ではクエリ）、`--raw-field` で常に文字列のフィールド、`-H` でヘッダ、`--paginate` で `nextId` をたどって全ページ取得、`-i` でステータスとヘッダを stderr に表示。`/api/v0` は省略可 |
-| `open [<url-path>]` | Web コンソールを開く（組織名は `GET /org` から取得してキャッシュ） |
-| `doctor` | 設定ファイル・キーの保存場所・ベース URL への疎通・キーの有効性・時計のずれ・プロキシ設定を診断 |
-| `completion <shell>` | 補完スクリプトを出力。ホスト名・監視名などは API から動的に補完（結果は短時間キャッシュ） |
-| `version` | バージョン・コミット・ビルド日時。`-o json` 対応 |
-
-```sh
-mcrl api /hosts --jq '.hosts[].name'
-mcrl api -X POST /graph-annotations -F title=test -F service=web -F from=now -F to=now
-```
+- `api <path>` は生 API。コマンドのない操作や、まだ対応していない新しい API もこれで呼べる。`--paginate` で `nextId` をたどる
+  ```sh
+  mcrl api /hosts --jq '.hosts[].name'
+  ```
+- `doctor` は設定ファイル・キーの保存場所・疎通・キーの有効性・時計のずれ・プロキシ設定を診断する。問い合わせの前に自分で切り分けられるように
+- `completion` のホスト名・監視名などは API から動的に補完する（結果は短時間キャッシュ）
 
 ## MCP サーバー
 
-| コマンド | 説明 |
-|---|---|
-| `mcp` | stdio で MCP サーバーとして動き、mcrl のコマンドを AI エージェントにツールとして公開する。既定は参照系だけ。`--allow-write` で作成・更新系、`--allow-destructive` で削除・退役などの確認プロンプトが出るコマンドも公開する |
-
-- ツール名はコマンドパスの空白とハイフンを `_` にしたもの（`host monitor-status` → `host_monitor_status`）
-- 引数はフラグ名（ハイフンを `_` に）と位置引数（`Use` の `<host>` → `host`。`...` 付きは配列）。全ツールに `jq`、更新系に `dry_run`。`--file` は `body`（JSON の値か、JSON/YAML の文字列）にして stdin から `--file -` で渡す（ファイルはサーバー側のマシンにあるため）
-- 説明文はコマンドの `Long`（API とキーの権限を含む）に `CLI: mcrl ...` の使い方を付けたもの。`--help` と同じ文から作る
-- 出力はコマンドの JSON（`-o json --compact`）をそのまま返す。失敗はツールエラーとして stderr と同じ `{"error": {...}}` に `exitCode` を足して返す
-- `mcrl mcp` に付けたグローバルフラグ（`--profile`、`--timeout`、`--debug`）は全ツール呼び出しに効く
-- `api` は GET だけ。`edit`・`log tail`・`annotation wrap`・`check run`・`auth`・`config`・`doctor`・`version` は公開しない
-- どのコマンドをどの区分で公開するかは `internal/cli/mcp.go` の表で決め、全コマンドが表か除外リストのどちらかにあることをテストで確かめる。方針は [decisions.md](decisions.md) D20
+- `mcp` は stdio で MCP サーバーとして動き、mcrl のコマンドを AI エージェントにツールとして公開する。ツール呼び出しはコマンドの実行に変換するので、名前解決・検証・エラーが CLI と同じになる（[decisions.md](decisions.md) D20）
+- 既定は参照系だけ。`--allow-write` で作成・更新系、`--allow-destructive` で CLI が確認を求めるコマンド（削除・退役など）も公開する。MCP では端末で確認を取れないため、起動時の明示的な許可にする
+- ツールの入力スキーマと説明文は、フラグ・`Use`・`Long` から作る。`--help` と同じ定義なので食い違わない
+- `--file` は `body` にして stdin で渡す。ファイルはサーバー側のマシンにあるため
+- エディタを開く（`edit`）・ローカルのコマンドを実行する（`check run`、`annotation wrap`）・終わらない（`log tail`）・認証情報を扱う（`auth`）コマンドは公開しない。`api` は GET だけ
+- どのコマンドをどの区分で公開するかは `internal/cli/mcp.go` の表で決め、全コマンドが表か除外リストにあることをテストで確かめる
 
 ```sh
 claude mcp add mcrl -- mcrl mcp
-claude mcp add mcrl-prod -- mcrl --profile prod mcp
 ```
 
-## 拡張
+## 拡張（未実装）
 
 `PATH` 上の `mcrl-<name>` を `mcrl <name>` として実行できるようにする。
 子プロセスには解決済みの `MACKEREL_APIKEY` と `MCRL_API_BASE` を渡し、プロファイル解決を再実装しなくて済むようにする。
+
+## API の制約・不揃い
+
+API の振る舞いのうち、コマンドの設計に影響したもの。実測の詳細は [api-notes.md](api-notes.md)。
+
+- メトリクス投稿: 24 時間より古いタイムスタンプは **200 を返しつつ黙って捨てられる**
+- チェック監視レポート: `occurredAt` が 6 時間以上未来、または同一 host/name で投稿済みのものは無視
+- サービス・ロール名: `^[A-Za-z0-9][A-Za-z0-9_-]+$`、2–63 文字
+- メトリクス名: `[a-zA-Z0-9._-]+`
+- グラフ定義名: `^custom(\.([-a-zA-Z0-9_]+|[*#]))+$`
+- メタデータ namespace: `[-a-zA-Z0-9_]+`、`mackerel` で始まる名前は予約
+- メタデータ数上限: host 50 / service 50 / role 10、値は任意の JSON 100KB まで
+- サービス削除はロール・サービスメトリクス・監視設定・グラフアノテーションを **連鎖削除**
+- 退役済みホストへのメタデータ書き込みは 400、退役 1 週間超のホストのメタデータ読み取りも 400
+- チェック監視は `/api/v0/monitoring/checks`（`/monitors` 配下ではない）
+- 招待の取り消しは `POST /invitations/revoke`（DELETE ではない）
+- グラフ定義の作成は `POST /graph-defs/create`、削除は `DELETE /graph-defs`（body に name）
+- Logs / Traces の一覧は検索条件が多いため POST
+- AWS インテグレーション一覧のキーは `aws_integrations`（スネークケース）
+- `GET /hosts.json` は `GET /hosts` と同一
+- 監視・通知チャンネル・通知グループ・ユーザー・ホストの ID は **11 文字の英数字**（実測）。名前解決では「11 文字の英数字なら ID とみなし、それ以外は名前」とし、`name:` 接頭辞で強制できる

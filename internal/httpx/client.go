@@ -73,10 +73,17 @@ func (e *NetworkError) Error() string {
 
 func (e *NetworkError) Unwrap() error { return e.Err }
 
-// URL builds the absolute URL for a request path.
+// URL builds the absolute URL for a request path. The path is taken as
+// escaped: a segment built with url.PathEscape is sent as it is, and
+// characters that need no escaping in a path, such as "*", are kept.
 func (c *Client) URL(path string, query url.Values) *url.URL {
 	u := *c.BaseURL
-	u.Path = strings.TrimSuffix(u.Path, "/") + NormalizePath(path)
+	p := strings.TrimSuffix(u.EscapedPath(), "/") + NormalizePath(path)
+	if unescaped, err := url.PathUnescape(p); err == nil {
+		u.Path, u.RawPath = unescaped, p
+	} else {
+		u.Path, u.RawPath = p, ""
+	}
 	u.RawQuery = query.Encode()
 	return &u
 }

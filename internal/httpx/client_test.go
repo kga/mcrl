@@ -45,6 +45,24 @@ func TestNormalizePath(t *testing.T) {
 	}
 }
 
+// The path is taken as escaped: url.PathEscape'd segments are not escaped
+// twice, and "*" is sent as is (the API does not decode "%2A" in graph names).
+func TestURLKeepsEscapedPath(t *testing.T) {
+	base, _ := url.Parse("https://api.example.com/base/")
+	c := &Client{BaseURL: base}
+	for in, want := range map[string]string{
+		"/hosts":                               "https://api.example.com/base/api/v0/hosts",
+		"/services/web/graph-defs/a.b.*":       "https://api.example.com/base/api/v0/services/web/graph-defs/a.b.*",
+		"/metadata/" + url.PathEscape("a b/c"): "https://api.example.com/base/api/v0/metadata/a%20b%2Fc",
+		"/hosts/a b":                           "https://api.example.com/base/api/v0/hosts/a%20b",
+		"/hosts/100%":                          "https://api.example.com/base/api/v0/hosts/100%25",
+	} {
+		if got := c.URL(in, nil).String(); got != want {
+			t.Errorf("%q: got %q, want %q", in, got, want)
+		}
+	}
+}
+
 func TestDoSendsHeaders(t *testing.T) {
 	c, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/api/v0/org" {
