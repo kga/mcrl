@@ -38,10 +38,14 @@ GoReleaser で作る（[decisions.md](decisions.md) D15。リポジトリが pri
 
 | 経路 | 内容 | 状態 |
 |---|---|---|
-| GitHub Releases | tar.gz / zip（darwin・linux・windows × amd64・arm64）、`checksums.txt`。各アーカイブに `LICENSE`・`README.md`・`completions/`（bash・zsh・fish） | v0.1.0 から。下書きで作り、オーナーが確認して公開 |
-| コンテナイメージ | `ghcr.io/kga/mcrl:<version>` と `latest`（linux/amd64・arm64）。distroless static（非 root）をダイジェストで固定 | v0.1.0 から |
+| GitHub Releases | tar.gz / zip（darwin・linux・windows × amd64・arm64）、`checksums.txt`。各アーカイブに `LICENSE`・`THIRD_PARTY_LICENSES`・`README.md`・`completions/`（bash・zsh・fish） | v0.1.0 から。`THIRD_PARTY_LICENSES` は v0.3.0 から |
+| コンテナイメージ | `ghcr.io/kga/mcrl:<version>` と `latest`（linux/amd64・arm64）。distroless static（非 root）をダイジェストで固定。`/usr/share/doc/mcrl/` に `LICENSE`・`THIRD_PARTY_LICENSES` | v0.1.0 から。ライセンス表示は v0.3.0 から |
 | Go | `go install github.com/kga/mcrl/cmd/mcrl@latest` | リポジトリを公開したら |
 | Homebrew / aqua / Scoop / WinGet / deb・rpm | | リポジトリを公開するときに検討 |
+
+### ライセンス表示
+
+mcrl のバイナリには、依存モジュール（MIT・BSD・Apache-2.0）と Go の標準ライブラリ・ランタイム（BSD）が入る。これらはバイナリで配布するときにもライセンス本文と著作権表示を添えることを求めるので、リリースのたびに `scripts/third-party-licenses.sh`（GoReleaser の before フック）が、リリースする全 OS の依存のライセンス（と NOTICE があればそれも）を `THIRD_PARTY_LICENSES` にまとめ、アーカイブとイメージに入れる。v0.2.2 までの配布物には入っていなかった（2026-11-08 に気づいて v0.3.0 から入れた）。
 
 リリースの手順（[tagpr](https://github.com/Songmu/tagpr)、[decisions.md](decisions.md) D16）:
 

@@ -15,7 +15,7 @@ A command-line client for the [Mackerel](https://mackerel.io/) API.
 
 ## Install
 
-Download an archive for your platform from [GitHub Releases](https://github.com/kga/mcrl/releases). Each archive contains the `mcrl` binary and shell completion scripts in `completions/`.
+Download an archive for your platform from [GitHub Releases](https://github.com/kga/mcrl/releases). Each archive contains the `mcrl` binary, shell completion scripts in `completions/`, and the licenses of mcrl and the code built into it (`LICENSE`, `THIRD_PARTY_LICENSES`).
 
 Or use the container image (linux/amd64, linux/arm64):
 

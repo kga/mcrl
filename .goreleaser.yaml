@@ -6,6 +6,7 @@ before:
   hooks:
     - go mod tidy
     - ./scripts/completions.sh
+    - ./scripts/third-party-licenses.sh
 
 builds:
   - main: ./cmd/mcrl
@@ -29,6 +30,7 @@ archives:
         formats: [zip]
     files:
       - LICENSE
+      - THIRD_PARTY_LICENSES
       - README.md
       - completions/*
 
@@ -44,6 +46,10 @@ dockers_v2:
     platforms:
       - linux/amd64
       - linux/arm64
+    # ライセンス表示はバイナリと一緒に配る（scripts/third-party-licenses.sh）
+    extra_files:
+      - LICENSE
+      - THIRD_PARTY_LICENSES
     labels:
       org.opencontainers.image.title: mcrl
       org.opencontainers.image.description: A command-line client for the Mackerel API
