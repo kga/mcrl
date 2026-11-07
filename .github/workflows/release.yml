@@ -4,6 +4,7 @@ name: Release
 # 1. macOS・Windows のテスト（cross-platform.yml）
 # 2. GoReleaser で Release の下書きと ghcr.io/kga/mcrl のイメージを作る
 # 3. バイナリの版とアーカイブの数を確かめてから公開する（immutable releases のため公開は最後）
+# 4. 公開した Release の release attestation を確かめる（verify-release.yml）
 #
 # 手動実行（workflow_dispatch）は、tag を指定すればそのタグのリリースをやり直し、
 # 空ならスナップショットを作るだけで何も公開しない。
@@ -85,16 +86,14 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh release edit "$TAG" --draft=false
-      - name: Verify the release attestation
-        if: env.PUBLISH == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          # immutable release の attestation は公開直後に作られるので、少し待ちながら確かめる。
-          # private リポジトリでも作られることを v0.1.1 で確認済み（2026-11-07）
-          for i in 1 2 3 4 5 6; do
-            if gh release verify "$TAG"; then exit 0; fi
-            sleep 10
-          done
-          echo "::error::could not verify the release attestation of $TAG"
-          exit 1
+
+  # 公開した Release の attestation を確かめる（attestations: read が要るので別 workflow にしてある）
+  verify:
+    needs: goreleaser
+    if: github.event_name == 'push' || inputs.tag != ''
+    permissions:
+      contents: read
+      attestations: read
+    uses: $/.github/workflows/verify-release.yml
+    with:
+      tag: ${{ inputs.tag || github.ref_name }}

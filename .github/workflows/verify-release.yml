@@ -1,0 +1,43 @@
+name: Verify release
+
+# 公開した Release の release attestation（immutable releases で GitHub が作る証明）を確かめる。
+# release.yml が公開の後に呼ぶほか、手動でも任意のタグを確かめられる。
+# GITHUB_TOKEN で attestation を読むには attestations: read が要る（ないと "no attestations" になる）。
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Tag of the release to verify
+        type: string
+        required: true
+  workflow_call:
+    inputs:
+      tag:
+        description: Tag of the release to verify
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      attestations: read
+    steps:
+      - name: Verify the release attestation
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          # attestation は公開の直後に作られるので、少し待ちながら確かめる
+          for i in 1 2 3 4 5 6; do
+            if gh release verify "$TAG"; then exit 0; fi
+            sleep 10
+          done
+          echo "::error::could not verify the release attestation of $TAG"
+          exit 1
