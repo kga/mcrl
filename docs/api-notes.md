@@ -119,6 +119,14 @@
 - `GET /hosts`（全ステータス指定でも）と `GET /hosts?name=` には出てこない。そのため名前では解決できず、`id:` で指定する必要がある
 - 退役したホストに付いていたチェック監視（`GET /monitoring/checks`）は残る。チェック監視を消す API はない
 
+## 棚卸しに使った事実（実測 2026-11-07）
+
+- `GET /monitoring/checks` と `GET /monitoring/checks/<id>` の要素は `{"id", "name"}` だけ。どのホストのチェックかは分からない
+- ホストのオブジェクトにはステータスを変えた時刻がない（`createdAt`、退役後の `retiredAt` のみ）
+- `GET /tsdb/latest` は `hostId` と `name` を複数並べられる。値のないメトリクス名は応答から省かれる（エラーにならない）
+- `GET /users` の要素は `id`・`screenName`・`email`・`authority`・`isMFAEnabled`・`isInRegistrationProcess`・`authenticationMethods`・`joinedAt`
+- 通知グループの `childChannelIds` にチャンネルの ID が入る（デフォルトのグループも同じ形）
+
 ## ログ・トレース・APM（実測 2026-11-07）
 
 - テストデータは OTLP/HTTP の **JSON**（`Content-Type: application/json`）で curl から直接送れた。トレースは `https://otlp-vaxila.mackerelio.com/v1/traces`、ログは `https://otlp.mackerelio.com:4318/v1/logs`、ヘッダ `Mackerel-Api-Key`（Write 権限）。手順は `dev/otlp/`

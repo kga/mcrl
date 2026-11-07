@@ -35,6 +35,7 @@ mcrl
 ├── trace       list / get
 ├── apm         http / db
 ├── export / diff / apply   （宣言的管理、07-declarative.md。未実装）
+├── audit       忘れられた設定・古くなった設定の棚卸し（参照のみ）
 ├── api         生 API 呼び出し
 ├── mcp         MCP サーバー（AI エージェントにコマンドをツールとして公開）
 ├── open        Web コンソールを開く（未実装）
@@ -139,6 +140,43 @@ mcrl
   ```
 - `log tail` は新しいログを JSONL で出し続ける。API の 1 req/s の制限を守ってポーリングする
 - 30 日を超える期間や APM の 30 分上限は、API に送る前にエラーにする
+
+## 棚卸し（audit）
+
+`audit` は、放っておくと腐る設定を一覧にする。何も変更しない（[decisions.md](decisions.md) D22）。
+定期的に（cron や CI で）実行して、忘れられたミュートや使われていない通知先に気づけるようにする。
+
+- 出力は「指摘」の配列。各要素は `{"kind", "severity", "resource": {"type", "id", "name"}, "message", "details"}`。`-o jsonl` と `--jq` で絞れる
+- 重要度は `warning`（通知が届かない・監視が効いていないなど、放置すると困るもの）と `info`（片付ければすっきりするもの）の 2 段
+- `--check <kind>` で一部だけ実行する（繰り返し・カンマ区切り可）。選んだチェックに要る一覧だけを取る
+- `--older-than`（既定 `30d`）はホストのチェックのしきい値
+- `--fail-on warning|info` で、その重要度以上の指摘があれば **終了コード 8** にする。出力はそのまま出る。既定では指摘があっても 0
+- 各一覧は 1 回だけ取り、チェックの間で使い回す。全チェックで約 10 リクエスト（ホスト 100 台ごとに `GET /tsdb/latest` が 1 回、ホストのないサービスごとに `metric-names` が 1 回、退役済みホストのアラートがあればホストごとに 1 回増える）
+
+| kind | 重要度 | 判定基準 |
+|---|---|---|
+| `muted-monitor` | warning | 監視の `isMute` が `true` |
+| `ended-downtime` | info | もう有効にならないダウンタイム。繰り返しなしは `start + duration` が現在以前、繰り返しありは `recurrence.until + duration` が現在以前（最後の回の終わりの上限）。`until` のない繰り返しは対象外。ちょうど終了時刻のものは終わったとみなす（`downtime list --active` と同じ半開区間） |
+| `dangling-scope` | warning | 監視の `scopes`・`excludeScopes`・サービス監視の `service`、ダウンタイムの `serviceScopes`・`roleScopes`（と各 `Exclude`）・`monitorScopes`（と `monitorExcludeScopes`）が、存在しないサービス・ロール・監視を指している |
+| `host-inactive` | info | `standby`・`maintenance`・`poweroff` のホストで、最後のメトリクス（なければ登録日時 `createdAt`）が `--older-than` より前 |
+| `host-stale-metrics` | warning | `working` のホストで、最後のメトリクスが `--older-than` より前 |
+| `host-without-role` | info | ロールが 1 つもないホスト（サービス・ロール単位の監視の対象にならない） |
+| `alert-on-retired-host` | warning | 未解決のアラートのうち、ホストが一覧になく、`GET /hosts/<id>` で `isRetired: true`（または取得できない）もの |
+| `unused-service` | info | どのホストのロールにも現れず、サービスメトリクスもないサービス |
+| `unused-role` | info | どのホストにも付いていないロール |
+| `unused-channel` | info | どの通知グループの `childChannelIds` にも入っていない通知チャンネル |
+| `empty-notification-group` | warning | `childChannelIds` と `childNotificationGroupIds` がどちらも空の通知グループ（デフォルトのグループも含む） |
+| `user-without-mfa` | warning | `isMFAEnabled` が `false` のユーザー |
+| `expired-invitation` | info | `expiresAt` が現在以前の招待 |
+
+- 「最後のメトリクス」は `GET /tsdb/latest` で `loadavg5`・`cpu.user.percentage`・`memory.used`（mackerel-agent が Linux・Windows で送るもの）の最新時刻の最大値。API だけで登録したホストなど、どれも持たないホストは `host-stale-metrics` の対象外で、`host-inactive` では登録日時で判断する
+- ホストの API にはステータスを変えた時刻がないので、「長く poweroff のまま」はメトリクスの途絶で代用している
+- 退役したホストに残ったチェック監視は判定できない。`GET /monitoring/checks` の各要素は `id` と `name` だけで、ホストとの対応がないため（[api-notes.md](api-notes.md#棚卸しに使った事実実測-2026-11-07)）。代わりに、退役したホストの未解決アラート（チェック監視のものを含む）を `alert-on-retired-host` で出す
+
+```sh
+# 週 1 回の棚卸し。warning があれば終了コード 8
+mcrl audit --fail-on warning -o jsonl > audit.jsonl
+```
 
 ## 横断機能
 
