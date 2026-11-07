@@ -31,6 +31,7 @@ Global flags:
 | [`annotation`](annotation.md) | Manage graph annotations |
 | [`api`](api.md) | Send an arbitrary request to the Mackerel API |
 | [`apm`](apm.md) | Show APM statistics |
+| [`audit`](audit.md) | List forgotten or stale settings |
 | [`aws`](aws.md) | Manage AWS integrations |
 | [`channel`](channel.md) | Manage notification channels |
 | [`check`](check.md) | Manage check monitoring |
@@ -93,6 +94,7 @@ Exit codes:
   5    invalid input or conflict (HTTP 400, 409, 413, or a name matched several resources)
   6    rate limited (HTTP 429 after retries)
   7    network error (connection failure, timeout)
+  8    "mcrl audit --fail-on" found something at or above the given severity
   130  interrupted (Ctrl-C)
 ```
 

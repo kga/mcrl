@@ -1,0 +1,70 @@
+env MACKEREL_APIKEY=audit-key
+
+# 全チェック: 指摘は種類の順に並び、各一覧は 1 回だけ取る
+exec mcrl audit --now @1800000000 --jq '.[] | [.kind, .severity, .resource.type, .resource.id] | join(" ")'
+cmp stdout want-all.txt
+grep -count=1 'GET /api/v0/hosts\?status=working&status=standby&status=maintenance&status=poweroff$' $WORK/requests.log
+grep -count=1 'GET /api/v0/monitors$' $WORK/requests.log
+grep -count=1 'GET /api/v0/downtimes$' $WORK/requests.log
+grep -count=1 'GET /api/v0/services$' $WORK/requests.log
+grep -count=1 'GET /api/v0/notification-groups$' $WORK/requests.log
+grep -count=1 'GET /api/v0/tsdb/latest\?hostId=hostWEB0001&hostId=hostSTALE01&hostId=hostOFF0001&name=loadavg5&name=cpu.user.percentage&name=memory.used$' $WORK/requests.log
+# サービスメトリクスはホストのないサービスだけ確かめる
+grep 'GET /api/v0/services/batch/metric-names' $WORK/requests.log
+! grep 'GET /api/v0/services/web/metric-names' $WORK/requests.log
+! grep 'POST|PUT|DELETE' $WORK/requests.log
+
+# 指摘の形
+exec mcrl audit --now @1800000000 --check alert-on-retired-host -o jsonl
+stdout -count=1 '^\{"kind":"alert-on-retired-host","severity":"warning","resource":\{"type":"alert","id":"alRETIRED01","name":"old-1"\},"message":"[^"]+","details":\{"alertStatus":"CRITICAL","hostId":"hostRETIRED","hostName":"old-1","monitorId":"chk","openedAt":1799000000,"retiredAt":1798000000\}\}$'
+
+# --check で一部だけ実行し、要らない一覧は取らない
+rm $WORK/requests.log
+exec mcrl audit --now @1800000000 --check muted-monitor,user-without-mfa --jq '.[].resource.id'
+cmp stdout want-some.txt
+! grep 'hosts|tsdb|channels' $WORK/requests.log
+
+# --older-than を短くすると、30 日では残っていたホストも出る
+exec mcrl audit --now @1800000000 --check host-stale-metrics --older-than 1m --jq '.[].resource.id'
+stdout '^hostWEB0001$'
+exec mcrl audit --now @1800000000 --check host-stale-metrics --older-than 31d --jq length
+stdout '^0$'
+
+# --fail-on: 指摘が重要度以上なら終了コード 8。出力はそのまま出る
+! exec mcrl audit --now @1800000000 --check user-without-mfa --fail-on warning --jq '.[].resource.name'
+grep '^8$' $WORK/exitcode
+stdout '^bob$'
+! stderr .
+exec mcrl audit --now @1800000000 --check expired-invitation --fail-on warning --jq '.[].resource.id'
+grep '^0$' $WORK/exitcode
+stdout '^late@example.com$'
+! exec mcrl audit --now @1800000000 --check expired-invitation --fail-on info
+grep '^8$' $WORK/exitcode
+
+# 使い方の誤り
+! exec mcrl audit --check nope
+grep '^2$' $WORK/exitcode
+stderr 'unknown --check \\"nope\\"'
+! exec mcrl audit --fail-on error
+grep '^2$' $WORK/exitcode
+! exec mcrl audit --older-than soon
+grep '^2$' $WORK/exitcode
+
+-- want-all.txt --
+muted-monitor warning monitor monMUTED001
+ended-downtime info downtime dtENDED0001
+ended-downtime info downtime dtENDSNOW01
+dangling-scope warning monitor monMUTED001
+host-inactive info host hostOFF0001
+host-stale-metrics warning host hostSTALE01
+host-without-role info host hostOFF0001
+alert-on-retired-host warning alert alRETIRED01
+unused-service info service batch
+unused-role info role web:idle
+unused-channel info channel chUNUSED001
+empty-notification-group warning notification-group ngEMPTY0001
+user-without-mfa warning user userNOMFA01
+expired-invitation info invitation late@example.com
+-- want-some.txt --
+monMUTED001
+userNOMFA01

@@ -101,6 +101,7 @@ var mcpTools = []mcpToolSpec{
 	{path: "aws list"},
 	{path: "aws get"},
 	{path: "aws excludable-metrics"},
+	{path: "audit", hide: []string{"fail-on", "now"}},
 	{
 		path: "api", fixed: []string{"--method=GET"}, hide: []string{"method", "file", "header", "include"},
 		note: "Over MCP, only GET requests can be sent.",
