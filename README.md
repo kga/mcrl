@@ -111,7 +111,7 @@ mcrl api /org
 | Dashboards | `dashboard ...`, `annotation list/create/update/delete/wrap` |
 | Observability | `log search/tail/saved`, `trace list/get`, `apm http/db` |
 | Organization | `org get`, `org ip-restriction get/set`, `user list/remove`, `invitation ...`, `aws ...` |
-| Other | `audit`, `api`, `mcp`, `auth`, `config`, `doctor`, `completion`, `version` |
+| Other | `audit`, `api`, `mcp`, `extension`, `auth`, `config`, `doctor`, `completion`, `version` |
 
 Every command has examples in `mcrl <command> --help`, along with the API endpoint it calls and the API key permission it needs.
 
@@ -165,6 +165,19 @@ Claude Desktop (`claude_desktop_config.json`):
 ```
 
 The API key is resolved as usual: the key stored by `mcrl auth login`, or `MACKEREL_APIKEY` in `env`.
+
+## Extensions
+
+`mcrl <name>` runs an executable named `mcrl-<name>` when `<name>` is not a built-in command, so you can add commands without changing mcrl. Extensions can be written in any language; they get `MCRL_BIN`, `MCRL_PROFILE` and `MCRL_API_BASE` and call `"$MCRL_BIN" api ...` to reach the API. The API key itself is never passed to them.
+
+```sh
+mcrl extension install someone/mcrl-drill     # clone a GitHub repository named mcrl-<name>
+mcrl extension install ./mcrl-hello           # link a local directory while developing
+mcrl extension list                           # source, URL and the installed commit
+mcrl extension upgrade drill --dry-run        # see the new commit before upgrading
+```
+
+An extension runs with your permissions and can use your API key through mcrl, so read its code before installing it. mcrl never updates an extension on its own. A minimal example is in [examples/extensions/mcrl-hello](examples/extensions/mcrl-hello/mcrl-hello); see [docs/extensions.md](docs/extensions.md) (Japanese) for details.
 
 ## Shell completion
 

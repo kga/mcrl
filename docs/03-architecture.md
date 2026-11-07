@@ -31,6 +31,7 @@ HTTP の詳細・出力形式・名前解決はそれぞれの層に閉じ込め
 | `internal/timeexpr` | 時刻表現のパース（`-1h`、`2026-11-06T10:00`、epoch など） |
 | `internal/config` | 設定ファイル・プロファイル・環境変数の解決 |
 | `internal/credential` | API キーの保存・取得（キーチェーン、`api_key_command`、環境変数） |
+| `internal/extension` | 拡張（`mcrl-<name>`）の探索・実行・インストール（[extensions.md](extensions.md)） |
 | `internal/apply` | 宣言的管理の差分計算と適用（[07-declarative.md](07-declarative.md)） |
 
 `internal/` に置くのは、外部から import されるライブラリとして API を約束しないため。
