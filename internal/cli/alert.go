@@ -202,7 +202,7 @@ func expandAlerts(cmd *cobra.Command, c *mackerel.Client, alerts []json.RawMessa
 		if hid := mackerel.StringField(a, "hostId"); hid != "" {
 			h, ok := hosts[hid]
 			if !ok { // 退役済みのホストは一覧に出ないので個別に取る
-				if raw, err := c.ResolveHost(ctx, "id:"+hid); err == nil {
+				if raw, err := hostByID(ctx, c, hid); err == nil && raw != nil {
 					h = &hostSummary{ID: hid, Name: mackerel.StringField(raw, "name")}
 				}
 				hosts[hid] = h

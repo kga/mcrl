@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"iter"
 	"net/url"
@@ -198,15 +199,30 @@ type monitorSummary struct {
 
 // monitorIndex maps monitor IDs to their names and types.
 func monitorIndex(cmd *cobra.Command, c *mackerel.Client) (map[string]*monitorSummary, error) {
-	items, err := c.List(cmd.Context(), "/monitors", "monitors", nil)
+	raws, err := monitorsByID(cmd.Context(), c)
 	if err != nil {
 		return nil, err
 	}
-	idx := make(map[string]*monitorSummary, len(items))
-	for _, it := range items {
+	idx := make(map[string]*monitorSummary, len(raws))
+	for id, raw := range raws {
 		var m monitorSummary
-		if json.Unmarshal(it, &m) == nil {
-			idx[m.ID] = &m
+		if json.Unmarshal(raw, &m) == nil {
+			idx[id] = &m
+		}
+	}
+	return idx, nil
+}
+
+// monitorsByID gets every monitor (GET /monitors) keyed by ID.
+func monitorsByID(ctx context.Context, c *mackerel.Client) (map[string]json.RawMessage, error) {
+	items, err := c.List(ctx, "/monitors", "monitors", nil)
+	if err != nil {
+		return nil, err
+	}
+	idx := make(map[string]json.RawMessage, len(items))
+	for _, it := range items {
+		if id := mackerel.StringField(it, "id"); id != "" {
+			idx[id] = it
 		}
 	}
 	return idx, nil
