@@ -20,6 +20,7 @@ workflows:
         - 'actions/checkout@v7.0.1'
         - 'actions/create-github-app-token@v3.3.0'
         - 'songmu/tagpr@v1.21.4'
+    '.github/workflows/verify-release.yml': []
 dependencies:
     'actions/checkout@v7.0.1':
         ref: 'v7.0.1'

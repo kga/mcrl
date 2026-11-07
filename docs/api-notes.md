@@ -136,6 +136,11 @@
 - トレース一覧の `title` はルートスパンの種類とメソッドで `[HTTP]GET` のようになる（ルートは含まれない）
 - `GET /traces/<id>` の span の `kind` と `status.code` は小文字の文字列（`server`、`client`、`error`、`unset`）
 
+## release attestation（実測 2026-11-07）
+
+- immutable releases を有効にした private リポジトリでも、公開した Release に release attestation が作られる（`gh release verify` / `verify-asset` で確かめられ、Release のページの Assets に「Release attestation (json)」が出る）
+- GitHub Actions の `GITHUB_TOKEN` で `gh release verify` するには、ジョブの権限に **`attestations: read`** が要る。ないとエラーではなく `no attestations for tag ...` と返るので、「まだ作られていない」と見分けがつかない
+
 ## API だけで登録したホスト（実測 2026-11-07）
 
 - `POST /hosts` は `meta: {}` で登録でき、`{"id": "..."}` を返す。登録直後の `status` は `working`、`size` は `standard`
