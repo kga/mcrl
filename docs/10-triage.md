@@ -140,7 +140,7 @@ Mackerel のアラートグループ設定（`alertGroupSettings`）でまとめ
 
 ## ログ・トレース
 
-ログ・トレースの `service.name`（OpenTelemetry のリソース属性）と、Mackerel のサービス・ロールは **まったく別の概念** で、API にも両者の対応はない（[api-notes.md](api-notes.md#ログトレースapm実測-2026-11-07)）。名前が同じでも同じものを指すとは限らない。また、ログの検索には本文の条件しかなく、ホストで絞る手段もない。そのため、アラート（監視・ホスト・Mackerel のサービス）からログ・トレースを自動でたどることはしない。
+ログ・トレースの `service.name`（OpenTelemetry のリソース属性）と、Mackerel のサービス・ロールは **まったく別の概念** で、API にも両者の対応はない（[api-notes.md](api-notes.md#ログトレースapm実測-2026-11-07)）。名前が同じでも同じものを指すとは限らない。ログもトレースも、検索には `serviceName`（`service.name`）が必須で、それがアラートの側からは決まらない。ホストで絞ろうにも、ログの検索条件にはリソース属性（`host.name` など）がない（レスポンスには `resourceAttributes` が付くので、サービスで検索した後に手元で絞ることはできる）。そのため、アラート（監視・ホスト・Mackerel のサービス）からログ・トレースを自動でたどることはしない。
 
 - `--otel-service` で指定されたサービスについてだけ、グループとは独立に `otel` に並べる。範囲は、周辺情報を取るグループの中で最も早い開始時刻を `t` として `[t - window, min(t + window, 今)]`（グループと同じ考え方で、トレース検索の 30 分の上限に収まる）
 - ログは `log search --severity error+` と同じ条件で新しい順に、トレースは `trace list --status error --sort latency` と同じ条件で、それぞれ `--max-samples` 件
