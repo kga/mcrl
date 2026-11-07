@@ -1,5 +1,14 @@
 # Changelog
 
+## [v0.3.0](https://github.com/kga/mcrl/compare/v0.2.2...v0.3.0) - 2026-11-07
+
+### New features
+- Add mcrl triage for the first minutes of an incident by @kga in https://github.com/kga/mcrl/pull/36
+### Other changes
+- Resolve triage T2: rate monitor values are not metrics by @kga in https://github.com/kga/mcrl/pull/33
+- Record that downtimes stop alerts from being created by @kga in https://github.com/kga/mcrl/pull/35
+- Prepare the repository for going public by @kga in https://github.com/kga/mcrl/pull/37
+
 ## [v0.2.2](https://github.com/kga/mcrl/compare/v0.2.1...v0.2.2) - 2026-11-07
 
 ### Other changes
