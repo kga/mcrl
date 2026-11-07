@@ -173,6 +173,25 @@
 - ユーザー権限: `owner` / `manager` / `collaborator` / `viewer`（招待できるのは owner 以外）
 - ログ severity: `UNSPECIFIED` / `TRACE` / `DEBUG` / `INFO` / `WARN` / `ERROR` / `FATAL`
 
+## ホストのメトリック監視の割合監視（調査・実測 2026-11-07）
+
+ホストのメトリック監視（`type: host`）の `metric` には、メトリクス名のほかに「割合監視」の名前を書ける。API ドキュメント（監視のページの注 *1）が挙げているのは `cpu%`・`memory%`・`disk%`・`swap%`・`container-cpu%`・`container-memory%`。`warning`/`critical` は % で指定する。
+
+計算方法は API ドキュメントにはなく、サポートの記事「割合監視「CPU %」などの監視ルールについて」（support.mackerel.io/hc/ja/articles/360040107951）にある。記事が挙げるのは 4 つで、名前は API と少し違う:
+
+| API の `metric` | 記事の名前 | 計算（記事より） |
+|---|---|---|
+| `cpu%` | CPU % | コア数に関係なく全体を 100% として、`cpu.idle.percentage` の割合を監視する |
+| `memory%` | Memory % | `memory.total` に対する `memory.used` |
+| `swap%` | Swap % | `memory.swap_total` に対する `memory.swap_used` |
+| `disk%` | Filesystem % | `filesystem.*.size` に対する `filesystem.*.used`。ファイルシステムが複数あれば、どれか 1 つでもしきい値を超えるとアラート |
+
+- `container-cpu%`・`container-memory%` は記事になく、計算方法は分からない
+- 使用率が常に 0 のホスト（スワップのないホストの `swap%` など）には適用されない（記事より）
+- **割合監視の値はメトリクスとして取れない**。`GET /hosts/<id>/metrics?name=cpu%`（`memory%`・`disk%`・`swap%` も）は `404 metric not found`（実測）。値はアラートの `value` にだけ出る
+- `cpu.*.percentage` はコアごとの値の合計（実測: 5 コアの擬似ホストで `cpu.idle.percentage` が約 500）。CPU % を元のメトリクスから求めるなら、コア数（ホストの `meta.cpu` の要素数）で割る必要がある
+- 擬似ホスト（mackerel-agent 0.87.2、Linux 6.18）が送っているのは `memory.mem_available`・`memory.swap_free`・`memory.swap_total` で、メトリック仕様のページにある `memory.available`・`memory.swap_used` はない。記事の Swap % の式（`memory.swap_used`）にあたるメトリクスがこのホストにはない（スワップが 0 のホストなので、送られないだけかもしれない）
+
 ## 期間の上限
 
 | API | 上限 |

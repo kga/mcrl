@@ -78,12 +78,18 @@ Mackerel のアラートグループ設定（`alertGroupSettings`）でまとめ
 | ホスト | `alerts[].host` | `GET /hosts`（全状態、1 回）。一覧にないものは `GET /hosts/<id>`（退役済み） | アラートに `hostId` があるとき |
 | アラートの経過 | `alerts[].logs` | `GET /alerts/<id>/logs` | ID を指定したときだけ（件数が増えるため） |
 | 同じホストの他の監視 | `context.otherMonitors` | `GET /hosts/<id>/monitored-statuses` | ホストがあるとき。OK 以外だけ載せる |
-| メトリクス | `context.metrics` | ホストの監視は `GET /hosts/<id>/metrics`、サービスの監視は `GET /services/<name>/metrics` | 監視の `metric` が取れる名前のとき（[未決](#未決) T2） |
+| メトリクス | `context.metrics` | ホストの監視は `GET /hosts/<id>/metrics`、サービスの監視は `GET /services/<name>/metrics` | 監視の `metric` が取れるとき。割合監視は元のメトリクスを取る（下記） |
 | 最新のメトリクス時刻 | `alerts[].host.lastMetricAt` | `GET /tsdb/latest`（audit と同じ 3 つのメトリクス） | 疎通監視（`connectivity`）のアラート |
 | アノテーション | `context.annotations` | `GET /graph-annotations` | 監視の `service`・`scopes` か、ホストのロールからサービスが分かるとき |
 | 有効なダウンタイム | `context.downtimes` | `GET /downtimes`（1 回） | 監視・サービス・ロールがダウンタイムの範囲に入るとき |
 
 - メトリクスは範囲内の点をそのまま返す（範囲が 30 分なら 1 分刻みで約 30 点）。しきい値と見比べられるよう、`monitor` の `warning`・`critical` はそのまま載せる
+- 割合監視（`cpu%`・`memory%`・`disk%`・`swap%` など）の値はメトリクスとして取れない（[api-notes.md](api-notes.md#ホストのメトリック監視の割合監視調査実測-2026-11-07)）。triage は割合を計算せず、計算の元になるメトリクスを取って載せる。割合はアラートの `value` にある
+  - `cpu%` → `cpu.idle.percentage`（コアごとの合計。ホストの `meta.cpu` の要素数で割ると 1 コアあたり）
+  - `memory%` → `memory.used`・`memory.total`
+  - `swap%` → `memory.swap_used`（なければ `memory.swap_free`）・`memory.swap_total`
+  - `disk%` → `filesystem.*.used`・`filesystem.*.size`（`metric names` で実際の名前を取ってから）
+  - `container-cpu%`・`container-memory%` は元のメトリクスが分からないので載せず、`errors` に理由を書く
 
 ## 出力
 
@@ -192,7 +198,7 @@ Mackerel のアラートグループ設定（`alertGroupSettings`）でまとめ
 | # | 論点 | 案 |
 |---|---|---|
 | T1 | 毎回同じ `--otel-service` を指定するなら、アラートの対象（ロールなど）から OpenTelemetry のサービスへの対応表を設定ファイルに持たせるか | まずは明示的な指定だけ。自動の対応づけはしない（両者は別の概念で、API に対応がないため） |
-| T2 | ホストのメトリクス監視の `metric` は `cpu%` のような別名を取りうる。別名から `GET /hosts/<id>/metrics` の名前への対応 | 実 API で別名の一覧と対応を確かめる。対応が分からないものはメトリクスを載せず `errors` に理由を書く |
+| T2 | ~~ホストのメトリクス監視の `metric` は `cpu%` のような別名を取りうる。別名から `GET /hosts/<id>/metrics` の名前への対応~~ | **解決（2026-11-07）**: 割合監視の値はメトリクスとして取れない。計算の元になるメトリクスを載せる（[集める情報](#集める情報)） |
 | T3 | まとめる単位。監視ごとか、Mackerel のアラートグループ設定に従うか | まずは監視ごと。アラートグループ設定を使う組織が増えたら `--group-by alert-group` を検討 |
 | T4 | ダウンタイム中に監視の対象になったとき、アラートは作られるのか、通知だけ止まるのか | ドキュメントと実 API で確かめる。作られないなら `in-downtime` の注記は不要 |
 | T5 | 一部の取得に失敗したときの終了コード | 0 にして `errors` に書く（上の案）。CI で使う用途はないので、失敗を終了コードで知らせる必要は薄い |
