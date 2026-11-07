@@ -69,8 +69,8 @@ M2 で見送ったもの: `config get/set/list/edit`、`open`。
 
 ## M6 以降の候補
 
-- プラグイン（`mcrl-<name>`）の仕組みの整備
-- ディレクトリ単位の `.mcrl.toml` によるプロファイル固定（[decisions.md](decisions.md) D8）
+- プラグイン（`mcrl-<name>`）の仕組みの整備 → 2026-11-07 に拡張として実装（[decisions.md](decisions.md) D23、[extensions.md](extensions.md)）
+- ~~ディレクトリ単位の `.mcrl.toml` によるプロファイル固定~~ → 作らない。mise・direnv で `MCRL_PROFILE` を設定する（[decisions.md](decisions.md) D24）
 
 ## 1.0.0 の条件
 

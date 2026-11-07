@@ -63,12 +63,25 @@ mcrl 独自の変数（`MCRL_API_KEY` など）は作らず、`MACKEREL_API_KEY`
 
 1. `--profile` フラグ
 2. 環境変数 `MCRL_PROFILE`
-3. カレントディレクトリから親へ辿って最初に見つかった `.mcrl.toml` の `profile`（リポジトリごとに組織を固定する用途）
-4. 設定ファイルの `default_profile`
-5. `default`
+3. 設定ファイルの `default_profile`
+4. `default`
 
-3 は後から入れる（[decisions.md](decisions.md) D8）。最初のリリースでは 1・2・4・5 だけを実装する。
-入れるときは「暗黙の設定読み込みはしない」原則（[01-vision.md](01-vision.md)）とぶつからないよう、`mcrl auth status` で必ずどのファイルを読んだか出す。
+### ディレクトリごとにプロファイルを固定する
+
+リポジトリごとに組織を固定したいときは、mise や direnv などのディレクトリ単位で環境変数を設定するツールで `MCRL_PROFILE` を設定する。mcrl 自身はディレクトリを辿って設定ファイル（当初案の `.mcrl.toml`）を探さない（[decisions.md](decisions.md) D24。D8 を置き換える）。
+
+```toml
+# プロジェクトの mise.toml
+[env]
+MCRL_PROFILE = "staging"
+```
+
+```sh
+# direnv の .envrc
+export MCRL_PROFILE=staging
+```
+
+どこで決まったかは `mcrl auth status` の `profile.source` で分かる（`MCRL_PROFILE` なら `env`）。
 
 ## ファイルの置き場所
 

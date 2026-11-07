@@ -50,6 +50,8 @@ base_url = "https://kcps-mackerel.io"
 mcrl --profile staging host list
 ```
 
+To pin a profile per directory, set `MCRL_PROFILE` with a tool such as [mise](https://mise.jdx.dev/) (`[env] MCRL_PROFILE = "staging"` in `mise.toml`) or [direnv](https://direnv.net/).
+
 ## Examples
 
 ```sh
