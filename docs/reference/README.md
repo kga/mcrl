@@ -59,6 +59,7 @@ Global flags:
 | [`completion`](completion.md) | Generate the autocompletion script for the specified shell |
 | [`config`](config.md) | Inspect the configuration |
 | [`doctor`](doctor.md) | Diagnose the configuration, API key and connectivity |
+| [`extension`](extension.md) | Manage extensions |
 | [`version`](version.md) | Show version information |
 
 ## Help topics
@@ -78,6 +79,7 @@ Environment variables:
   NO_COLOR          disable colors when set
   MCRL_NO_INPUT     never prompt when set
   MCRL_DEBUG        log HTTP requests and responses to stderr
+  MCRL_EXTENSIONS_DIR  directory of installed extensions
   HTTPS_PROXY, NO_PROXY  proxy settings
 ```
 
