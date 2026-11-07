@@ -1,6 +1,6 @@
 // Package extension finds, installs and runs mcrl extensions: executables
 // named mcrl-<name> that "mcrl <name>" runs when <name> is not a built-in
-// command. See docs/design/extensions.md.
+// command. See docs/extensions.md.
 package extension
 
 import (

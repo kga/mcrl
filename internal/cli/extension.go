@@ -15,7 +15,7 @@ import (
 	"github.com/kga/mcrl/internal/mackerel"
 )
 
-// Extensions are executables named mcrl-<name>; see docs/design/extensions.md.
+// Extensions are executables named mcrl-<name>; see docs/extensions.md.
 // Everything about them lives in this file: the dispatch that runs before
 // cobra parses the arguments, the "extension" commands, and the entries
 // added to the help and completion.
