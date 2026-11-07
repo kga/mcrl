@@ -59,6 +59,7 @@ func dumpBody(w interface{ Write([]byte) (int, error) }, body []byte) {
 		return
 	}
 	const maxDump = 64 << 10
+	body = redactBody(body)
 	b := body
 	suffix := ""
 	if len(b) > maxDump {
