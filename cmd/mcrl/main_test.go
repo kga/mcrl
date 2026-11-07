@@ -135,12 +135,21 @@ func (k fileKeyring) Set(s, u, p string) error {
 	if k == "" || strings.Contains(string(k), "unavailable") {
 		return errors.New("keyring unavailable")
 	}
+	if os.Getenv("MCRL_TEST_KEYRING_READONLY") != "" {
+		return errors.New("keyring is read-only")
+	}
 	m := k.load()
 	m[s+"/"+u] = p
 	return k.save(m)
 }
 
 func (k fileKeyring) Delete(s, u string) error {
+	if k == "" {
+		return errors.New("keyring unavailable")
+	}
+	if os.Getenv("MCRL_TEST_KEYRING_READONLY") != "" {
+		return errors.New("keyring is read-only")
+	}
 	m := k.load()
 	if _, ok := m[s+"/"+u]; !ok {
 		return keyring.ErrNotFound
