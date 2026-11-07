@@ -119,8 +119,6 @@ Every command has examples in `mcrl <command> --help`, along with the API endpoi
 
 ## Development
 
-Design documents and the decision log (in Japanese) are in [docs/design/](docs/design/README.md).
-
 ```sh
 mise run test
 mise run lint
