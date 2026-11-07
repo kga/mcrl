@@ -15,6 +15,10 @@ run = "go test -race ./..."
 description = "golangci-lint を実行する"
 run = "golangci-lint run"
 
+[tasks.docs]
+description = "docs/reference（コマンドリファレンス）を生成し直す"
+run = "go generate ./internal/cli"
+
 [tasks.snapshot]
 description = "GoReleaser でリリース成果物をローカルに作る（公開しない）"
 run = "goreleaser release --snapshot --clean"

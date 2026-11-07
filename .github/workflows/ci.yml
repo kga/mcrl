@@ -40,7 +40,9 @@ jobs:
           fi
           changed=$(git diff --name-only "$BASE...$HEAD")
           printf 'changed files:\n%s\n' "$changed"
-          if printf '%s\n' "$changed" | grep -qvE '^(docs/|dev/|LICENSE$)|\.md$'; then
+          # docs/reference はコマンドから生成するので、テスト（TestReferenceUpToDate）で確かめる
+          if printf '%s\n' "$changed" | grep -qvE '^(docs/|dev/|LICENSE$)|\.md$' ||
+            printf '%s\n' "$changed" | grep -qE '^docs/reference/'; then
             echo "code=true" >> "$GITHUB_OUTPUT"
           else
             echo "code=false" >> "$GITHUB_OUTPUT"
@@ -63,6 +65,8 @@ jobs:
         with:
           go-version: ${{ matrix.go }}
       - run: go vet ./...
+      # エンドポイントの網羅（TestEndpointCoverage）と docs/reference が生成し直しても
+      # 変わらないこと（TestReferenceUpToDate）も、ここで確かめる
       - run: go test -race ./...
 
   lint:
