@@ -132,7 +132,10 @@
 - テストデータは OTLP/HTTP の **JSON**（`Content-Type: application/json`）で curl から直接送れた。トレースは `https://otlp-vaxila.mackerelio.com/v1/traces`、ログは `https://otlp.mackerelio.com:4318/v1/logs`、ヘッダ `Mackerel-Api-Key`（Write 権限）。手順は `dev/otlp/`
 - 送ってから約 1 秒で `POST /logs`・`POST /traces`・`GET /traces/<id>`・`GET /apm/*` に現れた
 - リソース属性 `service.name` が検索の `serviceName` になる。Mackerel のサービス（`GET /services`）は作られない
-- `service.name` と Mackerel のサービス・ロールは **まったく別の概念**。名前が同じでも同じものを指すとは限らず、API にも両者の対応はない。API ドキュメントにあるログの検索条件は `serviceName`・`serviceNamespace`・`traceId`・キーワード・重要度・本文の条件（`bodyAttributes`）で、リソース属性（`host.name` など）では絞れない。トレースは `resourceAttributes` で絞れるが、`serviceName` が必須
+- `service.name` と Mackerel のサービス・ロールは **まったく別の概念**。名前が同じでも同じものを指すとは限らず、API にも両者の対応はない。API ドキュメントで確認（2026-11-07）:
+  - ログの検索（`POST /logs`）もトレースの検索（`POST /traces`）も **`serviceName` が必須**（optional の印がない）。mcrl の `log search` / `trace list` も `--service` を必須にしている
+  - ログの検索条件は `serviceName`・`serviceNamespace`・`traceId`・`keywords`・`severities`・`bodyAttributes`（本文が JSON のときだけ効く）。**リソース属性（`host.name` など）の条件はない**。レスポンスの各ログには `attributes`・`resourceAttributes`・`scopeAttributes` が付くので、取得後に手元で絞ることはできる
+  - トレースの検索は `attributes`・`resourceAttributes` で絞れる（ドキュメントの例は `host.name`）
 - ログの `body` は文字列のまま返る。本文が JSON なら `bodyAttributes` の条件（`keyPath`）が効く
 - トレース一覧の `title` はルートスパンの種類とメソッドで `[HTTP]GET` のようになる（ルートは含まれない）
 - `GET /traces/<id>` の span の `kind` と `status.code` は小文字の文字列（`server`、`client`、`error`、`unset`）
