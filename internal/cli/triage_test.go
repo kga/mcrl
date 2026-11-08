@@ -84,3 +84,38 @@ func TestShellQuote(t *testing.T) {
 		}
 	}
 }
+
+func TestFilesystemPeak(t *testing.T) {
+	pts := func(s ...string) []json.RawMessage {
+		var out []json.RawMessage
+		for _, x := range s {
+			out = append(out, json.RawMessage(x))
+		}
+		return out
+	}
+	used := pts(`{"time":1,"value":50}`, `{"time":2,"value":90}`, `{"time":3,"value":200}`)
+	size := pts(`{"time":1,"value":100}`, `{"time":2,"value":100}`)
+	if got := filesystemPeak(used, size); got != 90 {
+		t.Errorf("peak = %v, want 90 (a point without a size at the same time is ignored)", got)
+	}
+	if got := filesystemPeak(used, pts(`{"time":9,"value":100}`)); got != -1 {
+		t.Errorf("peak = %v, want -1 when no points share a time", got)
+	}
+}
+
+func TestNextMetricsPairsFilesystems(t *testing.T) {
+	var ms []triageMetric
+	for i, fs := range []string{"b", "a", "c"} {
+		for _, k := range []string{"size", "used"} {
+			ms = append(ms, triageMetric{HostID: "h", Name: "filesystem." + fs + "." + k, filesystem: fs, rank: i})
+		}
+	}
+	var got []string
+	for _, m := range nextMetrics(ms, func(triageMetric) bool { return true }) {
+		got = append(got, m.Name)
+	}
+	want := []string{"filesystem.b.size", "filesystem.b.used", "filesystem.a.size", "filesystem.a.used"}
+	if !slices.Equal(got, want) {
+		t.Errorf("got %v, want %v", got, want)
+	}
+}

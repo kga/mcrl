@@ -67,6 +67,19 @@ metrics are shown instead (the alert's "value" has the rate):
   memory%  memory.used, memory.total
   swap%    memory.swap_used (or memory.swap_free), memory.swap_total
   disk%    filesystem.*.used, filesystem.*.size
+For disk%, a filesystem is a pair of filesystem.<fs>.used and .size. The 5
+pairs with the highest usage are shown, highest first. They are ranked by
+current usage, read for all pairs of the host with GET /tsdb/latest. When
+some pairs have a current value, the host is reporting and only those are
+considered; the others (idle volumes come back null) are not read and only
+counted in "errors". When no pair has one (the host is not reporting), all
+are ranked by their peak usage (used / size at the same time) in the range,
+read from their points. Pairs with no points in the range are skipped. An
+"errors" entry names the left-out pairs with the usage used to rank them
+("now" or "peak"). At most 20 pairs per host have their points read (2
+requests each), so a reporting host costs 1 request for the metric names, 1
+per 50 series for /tsdb/latest, and 2 per shown pair (10 at most). "next"
+reads the used and size series of the top 2 pairs together.
 container-cpu% and container-memory% have no known source metrics and get
 an "errors" entry.
 

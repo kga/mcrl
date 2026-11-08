@@ -51,6 +51,19 @@ const (
 	// triageMaxMetricMatches is how many metrics a wildcard (filesystem.*.used)
 	// may expand to per host.
 	triageMaxMetricMatches = 10
+	// triageMaxFilesystems is how many filesystems (a used and a size series
+	// each) a disk% monitor shows per host: the ones with the highest usage.
+	triageMaxFilesystems = 5
+	// triageMaxFilesystemReads is how many filesystems per host have their
+	// points read (2 requests each): the shown ones, and those ranked by
+	// peak usage because GET /tsdb/latest has no current value for them.
+	triageMaxFilesystemReads = 20
+	// triageLatestChunk is how many series one GET /tsdb/latest asks for.
+	triageLatestChunk = 50
+	// triageNextMetrics and triageNextFilesystems are how many metrics, or
+	// used/size pairs of disk%, the "next" commands read per step.
+	triageNextMetrics     = 3
+	triageNextFilesystems = 2
 	// triageAlertLogLimit is how many status changes are read per alert
 	// when alert IDs are given.
 	triageAlertLogLimit = 50
@@ -111,6 +124,11 @@ type triageMetric struct {
 	Service string            `json:"service,omitempty"`
 	Name    string            `json:"name"`
 	Points  []json.RawMessage `json:"points"`
+
+	// filesystem is set for the used and size series of a disk% monitor, and
+	// rank is the filesystem's place by usage (0 is the highest).
+	filesystem string
+	rank       int
 }
 
 type triageOtherMonitor struct {
@@ -883,6 +901,10 @@ func (t *triager) fetchMetrics(r *triageRunner, g *triageGroup) {
 // fetchMetricSet fetches metrics of one host or service in the group's
 // range. Names with * are matched against the metric names first.
 func (t *triager) fetchMetricSet(g *triageGroup, base, label string, names []string, mk func(string, []json.RawMessage) triageMetric) {
+	if slices.Equal(names, triageRateSources["disk%"]) {
+		t.fetchFilesystemSet(g, base, label, mk)
+		return
+	}
 	var resolved []string
 	var known []json.RawMessage
 	for _, n := range names {
@@ -929,6 +951,244 @@ func (t *triager) fetchMetricSet(g *triageGroup, base, label string, names []str
 		g.metrics = append(g.metrics, mk(n, pts))
 		t.mu.Unlock()
 	}
+}
+
+// triageFilesystem is a filesystem with both its used and size series.
+type triageFilesystem struct {
+	name       string
+	usage      float64 // used/size in percent; -1 if unknown
+	basis      string  // "now" (GET /tsdb/latest), "peak" (in the range) or ""
+	read       bool
+	used, size []json.RawMessage
+}
+
+func (f *triageFilesystem) String() string {
+	switch f.basis {
+	case "now":
+		return fmt.Sprintf("%s (%.1f%% now)", f.name, f.usage)
+	case "peak":
+		return fmt.Sprintf("%s (peak %.1f%%)", f.name, f.usage)
+	}
+	return f.name + " (usage unknown)"
+}
+
+// filesystemLatest reads the current used/size, in percent, of the
+// filesystems of a host with GET /tsdb/latest, triageLatestChunk series per
+// request. Filesystems without values for both are left out of the result.
+func (t *triager) filesystemLatest(g *triageGroup, label, hostID string, names []string) map[string]float64 {
+	type latest struct {
+		Value float64 `json:"value"`
+	}
+	var series []string
+	for _, f := range names {
+		series = append(series, "filesystem."+f+".used", "filesystem."+f+".size")
+	}
+	vals := map[string]*latest{}
+	for chunk := range slices.Chunk(series, triageLatestChunk) {
+		q := url.Values{"hostId": {hostID}, "name": chunk}
+		b, err := t.c.Get(t.ctx, "/tsdb/latest", q)
+		if err == nil {
+			var resp struct {
+				TSDBLatest map[string]map[string]*latest `json:"tsdbLatest"`
+			}
+			if err = json.Unmarshal(b, &resp); err == nil {
+				for n, v := range resp.TSDBLatest[hostID] {
+					vals[n] = v
+				}
+			}
+		}
+		if err != nil {
+			t.addError(g, "metrics", fmt.Errorf("%s: current filesystem usage: %w", label, err))
+			break
+		}
+	}
+	out := map[string]float64{}
+	for _, f := range names {
+		used, size := vals["filesystem."+f+".used"], vals["filesystem."+f+".size"]
+		if used != nil && size != nil && size.Value > 0 {
+			out[f] = used.Value / size.Value * 100
+		}
+	}
+	return out
+}
+
+// fetchFilesystemSet fetches the filesystem series of a disk% monitor, which
+// alerts when any filesystem's used/size crosses the threshold. A filesystem
+// is a pair of filesystem.<fs>.used and .size.
+//
+// Filesystems are ranked by their current usage, read for all of them with
+// one GET /tsdb/latest per triageLatestChunk series. If any has a current
+// value, the host is reporting: only those are considered (idle volumes come
+// back null) and the others are only counted. If none has (the host is not
+// reporting), all are ranked by their peak usage in the range, read from
+// their points. Then the points of the top triageMaxFilesystems are read, in
+// rank order; filesystems with no points in the range are skipped. At most triageMaxFilesystemReads filesystems have their points
+// read.
+func (t *triager) fetchFilesystemSet(g *triageGroup, base, label string, mk func(string, []json.RawMessage) triageMetric) {
+	known, err := t.c.List(t.ctx, base+"/metric-names", "names", nil)
+	if err != nil {
+		t.addError(g, "metrics", fmt.Errorf("%s: metric names: %w", label, err))
+		return
+	}
+	usedRe, sizeRe := metricPattern("filesystem.*.used"), metricPattern("filesystem.*.size")
+	hasUsed, hasSize := map[string]bool{}, map[string]bool{}
+	for _, raw := range known {
+		var s string
+		if json.Unmarshal(raw, &s) != nil {
+			continue
+		}
+		if usedRe.MatchString(s) {
+			hasUsed[strings.TrimSuffix(strings.TrimPrefix(s, "filesystem."), ".used")] = true
+		}
+		if sizeRe.MatchString(s) {
+			hasSize[strings.TrimSuffix(strings.TrimPrefix(s, "filesystem."), ".size")] = true
+		}
+	}
+	var names []string
+	for f := range hasUsed {
+		if hasSize[f] {
+			names = append(names, f)
+		}
+	}
+	slices.Sort(names)
+
+	var latest map[string]float64
+	if hostID, ok := strings.CutPrefix(base, "/hosts/"); ok {
+		hostID, _ = url.PathUnescape(hostID)
+		latest = t.filesystemLatest(g, label, hostID, names)
+	}
+	cands := make([]*triageFilesystem, len(names))
+	for i, f := range names {
+		cands[i] = &triageFilesystem{name: f, usage: -1}
+		if u, ok := latest[f]; ok {
+			cands[i].usage, cands[i].basis = u, "now"
+		}
+	}
+
+	q := url.Values{"from": {strconv.FormatInt(g.rng.From, 10)}, "to": {strconv.FormatInt(g.rng.To, 10)}}
+	reads := 0
+	// read reads the points of f; false if f is to be skipped (error, or no
+	// points in the range) or the read limit is reached.
+	read := func(f *triageFilesystem) bool {
+		if f.read {
+			return len(f.used) > 0 && len(f.size) > 0
+		}
+		if reads >= triageMaxFilesystemReads {
+			return false
+		}
+		reads++
+		f.read = true
+		for _, k := range []string{"used", "size"} {
+			q.Set("name", "filesystem."+f.name+"."+k)
+			pts, err := t.c.List(t.ctx, base+"/metrics", "metrics", q)
+			if err != nil {
+				t.addError(g, "metrics", fmt.Errorf("%s: %s: %w", label, q.Get("name"), err))
+				f.used, f.size = nil, nil
+				return false
+			}
+			if k == "used" {
+				f.used = pts
+			} else {
+				f.size = pts
+			}
+		}
+		return len(f.used) > 0 && len(f.size) > 0
+	}
+
+	// 現在値のある組が 1 つもなければ（ホストがメトリクスを送っていない）、範囲内の点から最大使用率を出して順位を付ける
+	notConsidered := 0
+	if len(latest) == 0 {
+		for _, f := range cands {
+			if f.basis != "" {
+				continue
+			}
+			if !read(f) {
+				if f.read {
+					f.basis = "skip" // 点がない（または失敗）ので外す
+				}
+				continue
+			}
+			if peak := filesystemPeak(f.used, f.size); peak >= 0 {
+				f.usage, f.basis = peak, "peak"
+			}
+		}
+		cands = slices.DeleteFunc(cands, func(f *triageFilesystem) bool { return f.basis == "skip" })
+	} else {
+		// ホストは送っているので、現在値のない組（使われていないボリューム）は読まず、数だけ errors に書く
+		cands = slices.DeleteFunc(cands, func(f *triageFilesystem) bool {
+			if f.basis == "" {
+				notConsidered++
+			}
+			return f.basis == ""
+		})
+	}
+	slices.SortStableFunc(cands, func(x, y *triageFilesystem) int { return cmp.Compare(y.usage, x.usage) })
+
+	var kept, left []*triageFilesystem
+	for _, f := range cands {
+		switch {
+		case len(kept) >= triageMaxFilesystems:
+			left = append(left, f)
+		case read(f):
+			kept = append(kept, f)
+		case !f.read:
+			left = append(left, f) // 読み取りの上限に達して読めなかった
+		}
+	}
+	if len(left) > 0 || notConsidered > 0 {
+		var msg []string
+		if len(left) > 0 {
+			var s []string
+			for _, f := range left {
+				s = append(s, f.String())
+			}
+			msg = append(msg, fmt.Sprintf("%d filesystems; only the %d with the highest usage are shown, left out: %s",
+				len(kept)+len(left), triageMaxFilesystems, strings.Join(s, ", ")))
+		}
+		if notConsidered > 0 {
+			msg = append(msg, fmt.Sprintf("%d filesystems without a current value were not considered", notConsidered))
+		}
+		t.addError(g, "metrics", fmt.Errorf("%s: %s", label, strings.Join(msg, "; ")))
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	for i, f := range kept {
+		for _, s := range []struct {
+			kind string
+			pts  []json.RawMessage
+		}{{"size", f.size}, {"used", f.used}} {
+			m := mk("filesystem."+f.name+"."+s.kind, s.pts)
+			m.filesystem, m.rank = f.name, i
+			g.metrics = append(g.metrics, m)
+		}
+	}
+}
+
+// filesystemPeak is the highest used/size over the points at the same time,
+// as a percentage, or -1 when there is none.
+func filesystemPeak(used, size []json.RawMessage) float64 {
+	type point struct {
+		Time  int64   `json:"time"`
+		Value float64 `json:"value"`
+	}
+	sizes := map[int64]float64{}
+	for _, raw := range size {
+		var p point
+		if json.Unmarshal(raw, &p) == nil {
+			sizes[p.Time] = p.Value
+		}
+	}
+	peak := -1.0
+	for _, raw := range used {
+		var p point
+		if json.Unmarshal(raw, &p) != nil {
+			continue
+		}
+		if sz := sizes[p.Time]; sz > 0 {
+			peak = max(peak, p.Value/sz*100)
+		}
+	}
+	return peak
 }
 
 // isNotFound reports whether err is a 404 from the API.
@@ -1207,6 +1467,40 @@ func metricGetCommand(m triageMetric, span string) string {
 	return fmt.Sprintf("mcrl metric get %s --name %s %s", target, shellQuote(m.Name), span)
 }
 
+// nextMetrics picks the metrics a "next" step reads, in their shown order:
+// the first triageNextMetrics, or for disk% the used and size series of the
+// first triageNextFilesystems filesystems.
+func nextMetrics(metrics []triageMetric, ok func(triageMetric) bool) []triageMetric {
+	var out []triageMetric
+	seen := map[string]bool{}
+	plain, pairs := 0, 0
+	for _, m := range metrics {
+		if !ok(m) {
+			continue
+		}
+		key := m.HostID + m.Service + "\x00" + m.Name
+		if seen[key] {
+			continue
+		}
+		unit := "unit\x00" + m.HostID + m.Service + "\x00" + m.filesystem
+		if m.filesystem == "" {
+			if plain >= triageNextMetrics {
+				continue
+			}
+			plain++
+		} else if !seen[unit] {
+			if pairs >= triageNextFilesystems {
+				continue
+			}
+			pairs++
+			seen[unit] = true
+		}
+		seen[key] = true
+		out = append(out, m)
+	}
+	return out
+}
+
 func (t *triager) next(g *triageGroup) []string {
 	next := []string{}
 	if !g.detailed {
@@ -1219,16 +1513,7 @@ func (t *triager) next(g *triageGroup) []string {
 		next = append(next, "mcrl alert logs "+g.alerts[0].ID)
 	}
 	since := fmt.Sprintf("--since @%d", g.rng.From-3*3600)
-	seen := map[string]bool{}
-	for _, m := range g.metrics {
-		if len(seen) >= 3 {
-			break
-		}
-		key := m.HostID + m.Service + "\x00" + m.Name
-		if seen[key] {
-			continue
-		}
-		seen[key] = true
+	for _, m := range nextMetrics(g.metrics, func(triageMetric) bool { return true }) {
 		next = append(next, metricGetCommand(m, since))
 	}
 	// 状態が変わった時刻の前後は context の範囲外なので、別に読む
@@ -1244,19 +1529,14 @@ func (t *triager) next(g *triageGroup) []string {
 			until = t.opts.now
 		}
 		span := fmt.Sprintf("--since @%d --until @%d", at.Add(-t.opts.window).Unix(), until.Unix())
-		n := 0
-		for _, m := range g.metrics {
-			if n >= 3 {
-				break
-			}
-			// ホストのメトリクスは、そのアラートのホストのものだけ
-			if (m.Service == "" && m.HostID == a.HostID) || (m.Service != "" && a.HostID == "") {
-				next = append(next, metricGetCommand(m, span))
-				if !recentDone {
-					// value は今に近いかもしれないので、直近 --window も 1 グループにつき最初のアラート分だけ読む
-					recent = append(recent, metricGetCommand(m, "--since "+humanDuration(t.opts.window)))
-				}
-				n++
+		// ホストのメトリクスは、そのアラートのホストのものだけ
+		for _, m := range nextMetrics(g.metrics, func(m triageMetric) bool {
+			return (m.Service == "" && m.HostID == a.HostID) || (m.Service != "" && a.HostID == "")
+		}) {
+			next = append(next, metricGetCommand(m, span))
+			if !recentDone {
+				// value は今に近いかもしれないので、直近 --window も 1 グループにつき最初のアラート分だけ読む
+				recent = append(recent, metricGetCommand(m, "--since "+humanDuration(t.opts.window)))
 			}
 		}
 		recentDone = true
@@ -1358,7 +1638,7 @@ func (t *triager) output(g *triageGroup) (*triageGroupOut, error) {
 			hostRank[a.HostID] = i
 		}
 		slices.SortStableFunc(g.metrics, func(x, y triageMetric) int {
-			return cmp.Or(cmp.Compare(hostRank[x.HostID], hostRank[y.HostID]), cmp.Compare(x.Name, y.Name))
+			return cmp.Or(cmp.Compare(hostRank[x.HostID], hostRank[y.HostID]), cmp.Compare(x.rank, y.rank), cmp.Compare(x.Name, y.Name))
 		})
 		slices.SortStableFunc(g.otherMonitors, func(x, y triageOtherMonitor) int {
 			return cmp.Or(cmp.Compare(hostRank[x.HostID], hostRank[y.HostID]), cmp.Compare(x.Name, y.Name), cmp.Compare(x.MonitorID, y.MonitorID))
@@ -1486,6 +1766,19 @@ metrics are shown instead (the alert's "value" has the rate):
   memory%  memory.used, memory.total
   swap%    memory.swap_used (or memory.swap_free), memory.swap_total
   disk%    filesystem.*.used, filesystem.*.size
+For disk%, a filesystem is a pair of filesystem.<fs>.used and .size. The 5
+pairs with the highest usage are shown, highest first. They are ranked by
+current usage, read for all pairs of the host with GET /tsdb/latest. When
+some pairs have a current value, the host is reporting and only those are
+considered; the others (idle volumes come back null) are not read and only
+counted in "errors". When no pair has one (the host is not reporting), all
+are ranked by their peak usage (used / size at the same time) in the range,
+read from their points. Pairs with no points in the range are skipped. An
+"errors" entry names the left-out pairs with the usage used to rank them
+("now" or "peak"). At most 20 pairs per host have their points read (2
+requests each), so a reporting host costs 1 request for the metric names, 1
+per 50 series for /tsdb/latest, and 2 per shown pair (10 at most). "next"
+reads the used and size series of the top 2 pairs together.
 container-cpu% and container-memory% have no known source metrics and get
 an "errors" entry.
 
