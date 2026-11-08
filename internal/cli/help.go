@@ -27,6 +27,7 @@ func newHelpTopics() []*cobra.Command {
   6    rate limited (HTTP 429 after retries)
   7    network error (connection failure, timeout)
   8    "mcrl audit --fail-on" found something at or above the given severity
+  9    the change was applied, but --jq failed on the output (printed unfiltered)
   130  interrupted (Ctrl-C)`),
 		helpTopic("environment", "Environment variables read by mcrl", `Environment variables:
 

@@ -1,0 +1,35 @@
+# --jq と更新系コマンド
+env MACKEREL_APIKEY=good-key
+exec mcrl org get
+
+# --jq の構文エラーは使い方の誤り（終了コード 2）。リクエストを送る前に止める
+! exec mcrl host retire web-1 --yes --jq '.['
+grep '^2$' $WORK/exitcode
+stderr 'invalid --jq expression'
+! grep 'retire' $WORK/requests.log
+! exec mcrl monitor delete 'CPU high' --yes --jq '.['
+grep '^2$' $WORK/exitcode
+! grep 'DELETE' $WORK/requests.log
+
+# 更新のあとに --jq が実行時に失敗したら、反映済みを伝えて終了コード 9。
+# 絞り込む前の出力は stdout に出す。更新は 1 回だけ送られている
+! exec mcrl host retire web-1 --yes --jq '{id}'
+grep '^9$' $WORK/exitcode
+stdout '^\[\{"id":"exampleHst1"'
+stderr '"code":"applied_unfiltered"'
+stderr 'the change was applied'
+stderr 'expected an object but got: array'
+grep -count=1 'POST /api/v0/hosts/exampleHst1/retire' $WORK/requests.log
+
+# 成功する --jq は今までどおり 0
+exec mcrl host retire web-1 --yes --jq '.[].name'
+stdout '^web-1$'
+
+# 読み取り系の --jq 実行時エラーは今までどおり終了コード 1
+! exec mcrl host get web-1 --jq '.name | keys'
+grep '^1$' $WORK/exitcode
+stderr '"code":"error"'
+! stdout .
+
+exec mcrl help exit-codes
+stdout '9    the change was applied'

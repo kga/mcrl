@@ -39,8 +39,24 @@ type Factory struct {
 	NoInput bool
 	Timeout time.Duration
 
+	// Applied is set once a request that changes resources has succeeded.
+	// From then on a failing --jq must not look like a failed command.
+	Applied bool
+
 	cfg     *config.Config
 	cfgPath string
+}
+
+// CheckJQ compiles the --jq expression, if any, so that a syntax error is
+// reported as a usage error before any request is sent.
+func (f *Factory) CheckJQ() error {
+	if f.JQ == "" {
+		return nil
+	}
+	if _, err := output.CompileJQ(f.JQ); err != nil {
+		return &UsageError{Err: err}
+	}
+	return nil
 }
 
 // ConfigPath returns the path of config.toml.

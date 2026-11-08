@@ -58,7 +58,7 @@ Output is always JSON: indented and colored on a terminal, one line when piped.
 
 - Lists are arrays and single resources are objects. The API's wrapper objects (`{"hosts": [...]}`) are removed; otherwise the API's fields, names and epoch-second times are printed as they are, so the [Mackerel API documents](https://mackerel.io/api-docs/) describe the output.
 - `-o jsonl` prints one item per line, streaming where possible. Commands that never end, such as `log tail`, always print JSON Lines.
-- `--jq <expr>` filters the output with a built-in jq, so jq need not be installed. String results are printed without quotes, so IDs can go straight to the next command. With `-o jsonl`, the expression is applied to each item.
+- `--jq <expr>` filters the output with a built-in jq, so jq need not be installed. String results are printed without quotes, so IDs can go straight to the next command. With `-o jsonl`, the expression is applied to each item. A `--jq` syntax error is a usage error (exit code 2) and is reported before any request is sent. If the expression fails at run time after an update has been applied, the unfiltered output is printed, stderr says so, and the exit code is 9, so a script does not repeat the update.
 - `--expand` (on some commands, such as `alert list`) adds related names under `_expanded`, apart from the API's own fields.
 - Commands that update a resource print the resource after the update. When the API answers only `{"success": true}`, mcrl fetches the resource again; `--no-refetch` skips that.
 - Commands that take several targets (`alert close`, `host retire`, ...) always print an array, even for one target.
@@ -142,6 +142,7 @@ When stderr is not a terminal, the same error is one line of JSON. `status` (the
 | 6 | rate limited after retries |
 | 7 | network error |
 | 8 | `mcrl audit --fail-on` found something at or above the given severity |
+| 9 | the change was applied, but the output could not be filtered by `--jq` (the unfiltered output is printed) |
 | 130 | interrupted |
 
 `mcrl help exit-codes` prints the table. `mcrl check run` and `annotation wrap` run a command of yours and exit with its code.

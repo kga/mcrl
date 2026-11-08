@@ -67,6 +67,9 @@ Use --jq to filter it. Errors go to stderr and are reflected in the exit code
 		Version:       build.Get().Version,
 		SilenceErrors: true,
 		SilenceUsage:  true,
+		// Check --jq before any request, so that a syntax error stops an
+		// update command before it changes anything.
+		PersistentPreRunE: func(*cobra.Command, []string) error { return f.CheckJQ() },
 	}
 	root.SetIn(f.IO.In)
 	root.SetOut(f.IO.Out)

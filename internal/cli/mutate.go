@@ -233,6 +233,7 @@ func sendAll(cmd *cobra.Command, f *cmdutil.Factory, c *mackerel.Client, reqs []
 		if err != nil {
 			return out, false, err
 		}
+		f.Applied = true
 		out = append(out, b)
 	}
 	return out, false, nil

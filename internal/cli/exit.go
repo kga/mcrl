@@ -25,7 +25,9 @@ const (
 	ExitRateLimited = 6
 	ExitNetwork     = 7
 	// 8 is ExitFindings (mcrl audit --fail-on, audit.go).
-	ExitInterrupted = 130
+	// ExitAppliedUnfiltered: the change was applied, but --jq failed on the output.
+	ExitAppliedUnfiltered = 9
+	ExitInterrupted       = 130
 )
 
 type classified struct {
@@ -55,6 +57,9 @@ func classify(err error) classified {
 	switch {
 	case errors.As(err, &ee):
 		c.exit = ee.Code
+		if ee.Code == ExitAppliedUnfiltered {
+			c.code = "applied_unfiltered"
+		}
 	case errors.Is(err, context.Canceled):
 		c.exit, c.code = ExitInterrupted, "interrupted"
 	case errors.As(err, &ue) || isCobraUsageError(err):

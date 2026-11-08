@@ -45,6 +45,13 @@ type Printer struct {
 	Query *gojq.Code
 }
 
+// JQError is a run-time failure of the --jq expression (not a syntax error,
+// and not a failure to write the output).
+type JQError struct{ Err error }
+
+func (e *JQError) Error() string { return "--jq: " + e.Err.Error() }
+func (e *JQError) Unwrap() error { return e.Err }
+
 // CompileJQ parses a --jq expression.
 func CompileJQ(expr string) (*gojq.Code, error) {
 	q, err := gojq.Parse(expr)
@@ -112,7 +119,7 @@ func (p *Printer) runQuery(v any) error {
 			if errors.As(err, &he) && he.Value() == nil {
 				return nil
 			}
-			return fmt.Errorf("--jq: %w", err)
+			return &JQError{Err: err}
 		}
 		// 文字列は引用符なしで出す（jq -r 相当）。ID を次のコマンドに渡すため
 		if s, ok := r.(string); ok {
