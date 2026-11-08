@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 )
 
@@ -55,9 +56,19 @@ func serveTriageFixture(w http.ResponseWriter, r *http.Request, reqBody []byte) 
 			{"id":"hostWEB0001","name":"web-1","status":"working","roles":{"web":["app"]},"meta":{"cpu":[{},{}]}},
 			{"id":"hostWEB0002","name":"web-2","status":"working","roles":{"web":["app"]}},
 			{"id":"hostWEB0003","name":"web-3","status":"working","roles":{"web":["app"]}},
-			{"id":"hostOFF0001","name":"off-1","status":"poweroff","roles":{}}]}`,
+			{"id":"hostOFF0001","name":"off-1","status":"poweroff","roles":{}},
+			{"id":"hostSLOW0001","name":"slow-1","status":"poweroff","roles":{}},
+			{"id":"hostNONE0001","name":"none-1","status":"poweroff","roles":{}}]}`,
 		"GET /api/v0/hosts/hostRETIRED": `{"host":{"id":"hostRETIRED","name":"old-1","status":"working","isRetired":true,"retiredAt":1799990000,"roles":{}}}`,
-		"GET /api/v0/tsdb/latest":       `{"tsdbLatest":{"hostOFF0001":{"loadavg5":{"time":1799999640,"value":0.1}}}}`,
+		"GET /api/v0/tsdb/latest": `{"tsdbLatest":{"hostOFF0001":{"loadavg5":{"time":1799999640,"value":0.1}},
+			"hostSLOW0001":{"loadavg5":null,"cpu.user.percentage":null,"memory.used":null},
+			"hostNONE0001":{"loadavg5":null,"cpu.user.percentage":null,"memory.used":null}}}`,
+		// 疎通監視のアラート。ID を指定したときだけ読む（一覧には出ない）。
+		// hostSLOW0001 の最後の点は時系列 API にだけ残っており、hostNONE0001 には点がない
+		"GET /api/v0/alerts/alCONN00002":      `{"id":"alCONN00002","status":"CRITICAL","monitorId":"monCONN0001","type":"connectivity","hostId":"hostSLOW0001","openedAt":1799999700}`,
+		"GET /api/v0/alerts/alCONN00003":      `{"id":"alCONN00003","status":"CRITICAL","monitorId":"monCONN0001","type":"connectivity","hostId":"hostNONE0001","openedAt":1799999700}`,
+		"GET /api/v0/alerts/alCONN00002/logs": `{"logs":[]}`,
+		"GET /api/v0/alerts/alCONN00003/logs": `{"logs":[]}`,
 		"GET /api/v0/hosts/hostWEB0001/monitored-statuses": `{"monitoredStatuses":[
 			{"monitorId":"monCPU00001","status":"CRITICAL"},{"monitorId":"monDISK0001","status":"CRITICAL"},{"monitorId":"monCONN0001","status":"OK"}]}`,
 		"GET /api/v0/hosts/hostWEB0002/monitored-statuses": `{"monitoredStatuses":[
@@ -100,6 +111,21 @@ func serveTriageFixture(w http.ResponseWriter, r *http.Request, reqBody []byte) 
 		route == "GET /api/v0/services/web/metrics":
 		if q.Get("from") == "" || q.Get("to") == "" {
 			return writeJSON(http.StatusBadRequest, `{"error":{"message":"Bad request."}}`)
+		}
+		if strings.HasPrefix(route, "GET /api/v0/hosts/hostSLOW0001/") {
+			// loadavg5 のないホスト。cpu.user.percentage の最後の点は 1799990000（約 2.7 時間前）。範囲に入る点だけ返す
+			if q.Get("name") == "loadavg5" {
+				return writeJSON(http.StatusNotFound, `{"error":{"message":"metric not found"}}`)
+			}
+			from, _ := strconv.ParseInt(q.Get("from"), 10, 64)
+			to, _ := strconv.ParseInt(q.Get("to"), 10, 64)
+			if q.Get("name") == "cpu.user.percentage" && from <= 1799990000 && 1799990000 <= to {
+				return writeJSON(http.StatusOK, `{"metrics":[{"time":1799980000,"value":1},{"time":1799990000,"value":2}]}`)
+			}
+			return writeJSON(http.StatusOK, `{"metrics":[]}`)
+		}
+		if strings.HasPrefix(route, "GET /api/v0/hosts/hostNONE0001/") {
+			return writeJSON(http.StatusOK, `{"metrics":[]}`)
 		}
 		if q.Get("name") == "memory.swap_used" || strings.Contains(q.Get("name"), "%") {
 			return writeJSON(http.StatusNotFound, `{"error":{"message":"metric not found"}}`)

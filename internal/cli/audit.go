@@ -8,7 +8,9 @@ import (
 	"fmt"
 	"net/url"
 	"slices"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -168,7 +170,8 @@ func (a *auditor) latestMetrics() (map[string]int64, error) {
 	for i, h := range hosts {
 		ids[i] = h.ID
 	}
-	latest, err := latestMetricTimes(a.ctx, a.c, ids)
+	from, to := a.cutoff().Unix(), a.now.Unix()
+	latest, err := latestMetricTimes(a.ctx, a.c, ids, func(string) (int64, int64) { return from, to })
 	if err != nil {
 		return nil, err
 	}
@@ -177,9 +180,57 @@ func (a *auditor) latestMetrics() (map[string]int64, error) {
 }
 
 // latestMetricTimes returns when each host last sent any of
-// auditProbeMetrics (GET /tsdb/latest). Hosts that sent none are missing
-// from the map. mcrl audit and mcrl triage judge stopped hosts with it.
-func latestMetricTimes(ctx context.Context, c *mackerel.Client, hostIDs []string) (map[string]int64, error) {
+// auditProbeMetrics. Hosts with none are missing from the map. mcrl audit
+// and mcrl triage judge stopped hosts with it.
+//
+// GET /tsdb/latest is the cheap first step. For a host whose last points,
+// still returned by the time-series API, were about 20 hours old, it
+// returned the probe metric names with null values. So for the hosts
+// without a value there, the time-series API is read over the range rangeOf
+// gives, probe by probe, and the time of the last point is used. Over a day
+// or more the API returns aggregated points, so that time is approximate.
+func latestMetricTimes(ctx context.Context, c *mackerel.Client, hostIDs []string, rangeOf func(hostID string) (from, to int64)) (map[string]int64, error) {
+	latest, err := latestFromTSDB(ctx, c, hostIDs)
+	if err != nil {
+		return nil, err
+	}
+	var missing []string
+	for _, id := range hostIDs {
+		if _, ok := latest[id]; !ok && !slices.Contains(missing, id) {
+			missing = append(missing, id)
+		}
+	}
+	var (
+		mu       sync.Mutex
+		firstErr error
+	)
+	r := newTriageRunner()
+	for _, id := range missing {
+		r.Go(func() {
+			from, to := rangeOf(id)
+			t, ok, err := lastPointTime(ctx, c, id, from, to)
+			mu.Lock()
+			defer mu.Unlock()
+			switch {
+			case err != nil:
+				if firstErr == nil {
+					firstErr = err
+				}
+			case ok:
+				latest[id] = t
+			}
+		})
+	}
+	r.Wait()
+	if firstErr != nil {
+		return nil, firstErr
+	}
+	return latest, nil
+}
+
+// latestFromTSDB reads GET /tsdb/latest. Metrics with a null value are
+// ignored.
+func latestFromTSDB(ctx context.Context, c *mackerel.Client, hostIDs []string) (map[string]int64, error) {
 	latest := map[string]int64{}
 	for chunk := range slices.Chunk(hostIDs, auditLatestChunk) {
 		q := url.Values{"name": auditProbeMetrics}
@@ -207,6 +258,50 @@ func latestMetricTimes(ctx context.Context, c *mackerel.Client, hostIDs []string
 		}
 	}
 	return latest, nil
+}
+
+// lastPointTime returns the time of the last point of the first probe metric
+// that has points in [from, to] (GET /hosts/<id>/metrics). A probe the host
+// does not have (404) is skipped: Windows hosts have no loadavg5.
+func lastPointTime(ctx context.Context, c *mackerel.Client, hostID string, from, to int64) (int64, bool, error) {
+	q := url.Values{"from": {strconv.FormatInt(from, 10)}, "to": {strconv.FormatInt(to, 10)}}
+	for _, name := range auditProbeMetrics {
+		q.Set("name", name)
+		pts, err := c.List(ctx, "/hosts/"+url.PathEscape(hostID)+"/metrics", "metrics", q)
+		if isNotFound(err) {
+			continue
+		}
+		if err != nil {
+			return 0, false, fmt.Errorf("host %s: %s: %w", hostID, name, err)
+		}
+		var last int64
+		found := false
+		for _, raw := range pts {
+			var p struct {
+				Time int64 `json:"time"`
+			}
+			if json.Unmarshal(raw, &p) == nil && (!found || p.Time > last) {
+				last, found = p.Time, true
+			}
+		}
+		if found {
+			return last, true, nil
+		}
+	}
+	return 0, false, nil
+}
+
+// formatOlderThan writes a duration the way --older-than takes it (30d, 12h).
+func formatOlderThan(d time.Duration) string {
+	switch {
+	case d%(24*time.Hour) == 0:
+		return fmt.Sprintf("%dd", d/(24*time.Hour))
+	case d%time.Hour == 0:
+		return fmt.Sprintf("%dh", d/time.Hour)
+	case d%time.Minute == 0:
+		return fmt.Sprintf("%dm", d/time.Minute)
+	}
+	return d.String()
 }
 
 func (a *auditor) cutoff() time.Time { return a.now.Add(-a.olderThan) }
@@ -418,7 +513,7 @@ func (a *auditor) inactiveHosts() ([]auditFinding, error) {
 		}
 		last, ok := latest[h.ID]
 		details := map[string]any{"status": h.Status, "createdAt": h.CreatedAt}
-		since := h.CreatedAt
+		since := h.CreatedAt // a host registered within --older-than is not judged
 		if ok {
 			since = last
 			details["lastMetricAt"] = last
@@ -428,7 +523,7 @@ func (a *auditor) inactiveHosts() ([]auditFinding, error) {
 		}
 		msg := fmt.Sprintf("the host is %s and has sent no metric since %s", h.Status, epochString(since))
 		if !ok {
-			msg = fmt.Sprintf("the host is %s and has sent no metric (registered %s)", h.Status, epochString(since))
+			msg = fmt.Sprintf("the host is %s and has sent no metric in the last %s", h.Status, formatOlderThan(a.olderThan))
 		}
 		out = append(out, auditFinding{Resource: auditResource{"host", h.ID, h.Name}, Message: msg, Details: details})
 	}
@@ -823,11 +918,16 @@ and cron).
 Checks:
 `+list.String()+`
 Hosts are judged by the newest of `+strings.Join(auditProbeMetrics, ", ")+`
-(GET /tsdb/latest). For hosts that have none of them, such as hosts
-registered through the API only, host-stale-metrics does not apply and
-host-inactive uses the registration time instead.`, "Read",
+(GET /tsdb/latest). For a host with no value there, the time-series API
+(GET /hosts/<id>/metrics) is read over the last --older-than, one metric at
+a time in that order until one has points, and the time of the last point
+is used; over a day or more the API returns aggregated points, so that time
+is approximate. A host with no point in that range is reported by
+host-inactive as having sent no metric in the last --older-than (unless it
+was registered within that time); host-stale-metrics does not apply to it,
+since hosts registered through the API only never send these metrics.`, "Read",
 			"GET /api/v0/monitors", "GET /api/v0/downtimes", "GET /api/v0/services", "GET /api/v0/hosts",
-			"GET /api/v0/tsdb/latest", "GET /api/v0/alerts", "GET /api/v0/hosts/<id>",
+			"GET /api/v0/tsdb/latest", "GET /api/v0/hosts/<id>/metrics", "GET /api/v0/alerts", "GET /api/v0/hosts/<id>",
 			"GET /api/v0/services/<name>/metric-names", "GET /api/v0/channels", "GET /api/v0/notification-groups",
 			"GET /api/v0/users", "GET /api/v0/invitations"),
 		Example: `  mcrl audit

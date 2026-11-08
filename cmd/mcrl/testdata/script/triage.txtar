@@ -154,9 +154,24 @@ grep '^2$' $WORK/exitcode
 grep '^2$' $WORK/exitcode
 ! exec mcrl triage --max-groups 0
 grep '^2$' $WORK/exitcode
+# /tsdb/latest が null を返すホストは、アラートが開く前の 7 日間の時系列 API から最後の点を探す
+rm $WORK/requests.log
+exec mcrl triage --now @1800000000 alCONN00002 alCONN00003 --jq '.groups[0].alerts[] | "\(.id) \(.host.lastMetricAt)"'
+cmp stdout want-slow.txt
+grep -count=1 'GET /api/v0/tsdb/latest\?hostId=hostSLOW0001&hostId=hostNONE0001&name=loadavg5&name=cpu.user.percentage&name=memory.used$' $WORK/requests.log
+grep -count=1 'GET /api/v0/hosts/hostSLOW0001/metrics\?from=1799394900&name=loadavg5&to=1799999700$' $WORK/requests.log
+grep -count=1 'GET /api/v0/hosts/hostSLOW0001/metrics\?from=1799394900&name=cpu.user.percentage&to=1799999700$' $WORK/requests.log
+! grep 'hostSLOW0001/metrics.*memory.used' $WORK/requests.log
+grep -count=3 'GET /api/v0/hosts/hostNONE0001/metrics' $WORK/requests.log
+exec mcrl triage --now @1800000000 alCONN00002 alCONN00003 --jq '.groups[0].notes[] | select(.kind == "metrics-stopped") | .message'
+stdout -count=1 '^the host "slow-1" last sent metrics at 2027-01-15T05:13:20Z, 2h41m before the alert opened$'
+
 ! exec mcrl triage --role web
 grep '^2$' $WORK/exitcode
 
+-- want-slow.txt --
+alCONN00002 1799990000
+alCONN00003 null
 -- want-groups.txt --
 CRITICAL monCONN0001 1 true alCONN00001
 CRITICAL monCPU00001 1 true alCPU000001

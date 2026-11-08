@@ -76,7 +76,13 @@ Notes:
   host-retired            the alert's host is retired or deleted
   host-not-working        the host is standby, maintenance or poweroff
   metrics-stopped         connectivity alert whose host last sent metrics
-                          before the alert opened
+                          before the alert opened. The time comes from
+                          GET /tsdb/latest; for a host with no value there,
+                          from the last point of loadavg5, cpu.user.percentage
+                          or memory.used (the first that has points) in the
+                          7 days before the alert opened. Over a day or more
+                          the points are aggregated, so the time is
+                          approximate. With no point, there is no note.
   status-changed          an alert's latest status change is outside the
                           context range
   recent-annotation       a graph annotation in the range

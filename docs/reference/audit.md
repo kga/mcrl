@@ -35,11 +35,16 @@ Checks:
   expired-invitation         info     invitations past their expiry
 
 Hosts are judged by the newest of loadavg5, cpu.user.percentage, memory.used
-(GET /tsdb/latest). For hosts that have none of them, such as hosts
-registered through the API only, host-stale-metrics does not apply and
-host-inactive uses the registration time instead.
+(GET /tsdb/latest). For a host with no value there, the time-series API
+(GET /hosts/<id>/metrics) is read over the last --older-than, one metric at
+a time in that order until one has points, and the time of the last point
+is used; over a day or more the API returns aggregated points, so that time
+is approximate. A host with no point in that range is reported by
+host-inactive as having sent no metric in the last --older-than (unless it
+was registered within that time); host-stale-metrics does not apply to it,
+since hosts registered through the API only never send these metrics.
 
-API: GET /api/v0/monitors, GET /api/v0/downtimes, GET /api/v0/services, GET /api/v0/hosts, GET /api/v0/tsdb/latest, GET /api/v0/alerts, GET /api/v0/hosts/<id>, GET /api/v0/services/<name>/metric-names, GET /api/v0/channels, GET /api/v0/notification-groups, GET /api/v0/users, GET /api/v0/invitations
+API: GET /api/v0/monitors, GET /api/v0/downtimes, GET /api/v0/services, GET /api/v0/hosts, GET /api/v0/tsdb/latest, GET /api/v0/hosts/<id>/metrics, GET /api/v0/alerts, GET /api/v0/hosts/<id>, GET /api/v0/services/<name>/metric-names, GET /api/v0/channels, GET /api/v0/notification-groups, GET /api/v0/users, GET /api/v0/invitations
 API key permission: Read
 
 Examples:

@@ -8,11 +8,29 @@ grep -count=1 'GET /api/v0/monitors$' $WORK/requests.log
 grep -count=1 'GET /api/v0/downtimes$' $WORK/requests.log
 grep -count=1 'GET /api/v0/services$' $WORK/requests.log
 grep -count=1 'GET /api/v0/notification-groups$' $WORK/requests.log
-grep -count=1 'GET /api/v0/tsdb/latest\?hostId=hostWEB0001&hostId=hostSTALE01&hostId=hostOFF0001&name=loadavg5&name=cpu.user.percentage&name=memory.used$' $WORK/requests.log
+grep -count=1 'GET /api/v0/tsdb/latest\?hostId=hostWEB0001&hostId=hostSTALE01&hostId=hostOFF0001&hostId=hostSLOW0001&name=loadavg5&name=cpu.user.percentage&name=memory.used$' $WORK/requests.log
+# null の値しか返らないホストと値のないホストだけ、時系列 API で最後の点を探す。
+# 点のあるメトリクスが見つかったら止める（hostSLOW0001 は loadavg5 が 404 で、cpu.user.percentage にある）
+grep -count=1 'GET /api/v0/hosts/hostSLOW0001/metrics\?from=1797408000&name=loadavg5&to=1800000000$' $WORK/requests.log
+grep -count=1 'GET /api/v0/hosts/hostSLOW0001/metrics\?from=1797408000&name=cpu.user.percentage&to=1800000000$' $WORK/requests.log
+! grep 'hostSLOW0001/metrics.*memory.used' $WORK/requests.log
+grep -count=3 'GET /api/v0/hosts/hostOFF0001/metrics' $WORK/requests.log
+! grep 'hostWEB0001/metrics' $WORK/requests.log
 # サービスメトリクスはホストのないサービスだけ確かめる
 grep 'GET /api/v0/services/batch/metric-names' $WORK/requests.log
 ! grep 'GET /api/v0/services/web/metric-names' $WORK/requests.log
 ! grep 'POST|PUT|DELETE' $WORK/requests.log
+
+# 最後の点が範囲内にあるホストは指摘されない。範囲内に点がないホストは、確かめた範囲を示して指摘される
+exec mcrl audit --now @1800000000 --check host-inactive --jq '.[] | [.resource.id, .message] | join(" | ")'
+cmp stdout want-inactive.txt
+exec mcrl audit --now @1800000000 --check host-inactive --jq '.[0].details | keys | join(",")'
+stdout '^createdAt,status$'
+# --older-than が短く、最後の点が範囲の外なら、そのことが分かる書き方になる
+exec mcrl audit --now @1800000000 --check host-inactive --older-than 12h --jq '.[] | [.resource.id, .message] | join(" | ")'
+cmp stdout want-inactive-12h.txt
+exec mcrl audit --now @1800000000 --check host-inactive --older-than 2d --jq '[.[].resource.id] | join(",")'
+stdout '^hostOFF0001$'
 
 # 指摘の形
 exec mcrl audit --now @1800000000 --check alert-on-retired-host -o jsonl
@@ -65,6 +83,11 @@ unused-channel info channel chUNUSED001
 empty-notification-group warning notification-group ngEMPTY0001
 user-without-mfa warning user userNOMFA01
 expired-invitation info invitation late@example.com
+-- want-inactive.txt --
+hostOFF0001 | the host is poweroff and has sent no metric in the last 30d
+-- want-inactive-12h.txt --
+hostOFF0001 | the host is poweroff and has sent no metric in the last 12h
+hostSLOW0001 | the host is standby and has sent no metric in the last 12h
 -- want-some.txt --
 monMUTED001
 userNOMFA01

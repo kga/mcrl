@@ -40,6 +40,12 @@ const (
 	// triageConcurrency is how many requests run at once. Logs and traces
 	// are further limited to 1 request/second by internal/httpx.
 	triageConcurrency = 4
+
+	// triageLastMetricLookback is how far before a connectivity alert opened
+	// the time-series API is read for the last metric of its host, when
+	// GET /tsdb/latest has no value for the host.
+	triageLastMetricLookback = 7 * 24 * time.Hour
+
 	// triageMaxLogBody is the length (in bytes) a log body is cut to.
 	triageMaxLogBody = 2000
 	// triageMaxMetricMatches is how many metrics a wildcard (filesystem.*.used)
@@ -593,7 +599,18 @@ func (t *triager) fetchContext(groups []*triageGroup) []*triageOtelOut {
 	}
 	if len(probeIDs) > 0 {
 		r.Go(func() {
-			latest, err := latestMetricTimes(t.ctx, t.c, probeIDs)
+			// 範囲の終わりは、そのホストの最新の疎通監視のアラートが開いた時刻
+			opened := map[string]int64{}
+			for _, g := range detailed {
+				for _, a := range g.alerts {
+					if a.Type == "connectivity" {
+						opened[a.HostID] = max(opened[a.HostID], a.OpenedAt)
+					}
+				}
+			}
+			latest, err := latestMetricTimes(t.ctx, t.c, probeIDs, func(id string) (int64, int64) {
+				return opened[id] - int64(triageLastMetricLookback/time.Second), opened[id]
+			})
 			for _, g := range detailed {
 				for _, a := range g.alerts {
 					if a.Type != "connectivity" || a.HostID == "" {
@@ -1430,7 +1447,13 @@ Notes:
   host-retired            the alert's host is retired or deleted
   host-not-working        the host is standby, maintenance or poweroff
   metrics-stopped         connectivity alert whose host last sent metrics
-                          before the alert opened
+                          before the alert opened. The time comes from
+                          GET /tsdb/latest; for a host with no value there,
+                          from the last point of loadavg5, cpu.user.percentage
+                          or memory.used (the first that has points) in the
+                          7 days before the alert opened. Over a day or more
+                          the points are aggregated, so the time is
+                          approximate. With no point, there is no note.
   status-changed          an alert's latest status change is outside the
                           context range
   recent-annotation       a graph annotation in the range
