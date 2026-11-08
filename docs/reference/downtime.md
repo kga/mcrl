@@ -155,7 +155,7 @@ Examples:
   mcrl downtime list --active --jq '.[].name'
 
 Flags:
-      --active   only downtimes in effect now
+      --active[=true|false]   only downtimes in effect now
 ```
 
 ## mcrl downtime update

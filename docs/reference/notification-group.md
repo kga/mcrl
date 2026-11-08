@@ -169,6 +169,6 @@ Flags:
       --monitor stringArray        monitor, ID or name (repeatable; replaces the list)
       --monitor-only stringArray   monitor whose alerts go only to this group (skipDefault), ID or name (repeatable)
       --name string                name
-      --replace                    send the -f file as the complete object without merging
+      --replace[=true|false]       send the -f file as the complete object without merging
       --service stringArray        service (repeatable; replaces the list)
 ```

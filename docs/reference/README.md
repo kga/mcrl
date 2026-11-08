@@ -10,16 +10,16 @@ Use --jq to filter it. Errors go to stderr and are reflected in the exit code
 (see "mcrl help exit-codes").
 
 Global flags:
-      --color string       colorize JSON: auto, always or never (env: MCRL_COLOR, NO_COLOR)
-      --compact            print compact JSON even on a terminal
-      --debug              log HTTP requests and responses to stderr (env: MCRL_DEBUG)
-      --dry-run            print the request that would be sent and exit
-      --jq string          filter the JSON output with a jq expression; strings are printed raw
-      --no-input           never prompt (env: MCRL_NO_INPUT)
-  -o, --output string      output format: json or jsonl (env: MCRL_OUTPUT)
-      --profile string     profile to use (env: MCRL_PROFILE)
-      --timeout duration   timeout for each HTTP request (default 30s)
-  -y, --yes                skip confirmation prompts
+      --color string            colorize JSON: auto, always or never (env: MCRL_COLOR, NO_COLOR)
+      --compact[=true|false]    print compact JSON even on a terminal
+      --debug[=true|false]      log HTTP requests and responses to stderr (env: MCRL_DEBUG)
+      --dry-run[=true|false]    print the request that would be sent and exit
+      --jq string               filter the JSON output with a jq expression; strings are printed raw
+      --no-input[=true|false]   never prompt (env: MCRL_NO_INPUT)
+  -o, --output string           output format: json or jsonl (env: MCRL_OUTPUT)
+      --profile string          profile to use (env: MCRL_PROFILE)
+      --timeout duration        timeout for each HTTP request (default 30s)
+  -y, --yes[=true|false]        skip confirmation prompts
 ```
 
 ## Commands

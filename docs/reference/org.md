@@ -81,8 +81,8 @@ Examples:
   mcrl org ip-restriction set --target web --clear
 
 Flags:
-      --cidr stringArray   allowed IP range in CIDR notation (repeatable)
-      --clear              remove the restriction
-      --no-refetch         print the API response ({"success": true}) instead of fetching the updated resource
-      --target string      web or api (required)
+      --cidr stringArray          allowed IP range in CIDR notation (repeatable)
+      --clear[=true|false]        remove the restriction
+      --no-refetch[=true|false]   print the API response ({"success": true}) instead of fetching the updated resource
+      --target string             web or api (required)
 ```

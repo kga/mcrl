@@ -62,7 +62,7 @@ Examples:
   mcrl trace list --service web --since 1h --min-latency 1s --sort latency --jq '.[] | [.traceId, .traceLatencyMillis, .title] | @tsv'
 
 Flags:
-      --asc                         ascending order
+      --asc[=true|false]            ascending order
       --attr stringArray            span attribute condition (repeatable)
       --env string                  deployment environment
       --issue string                issue fingerprint

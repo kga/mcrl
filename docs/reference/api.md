@@ -49,8 +49,8 @@ Flags:
   -F, --field stringArray       add a typed parameter as key=value (repeatable)
   -f, --file string             read the JSON request body from a file ("-" for stdin)
   -H, --header stringArray      add a request header as "Name: value" (repeatable)
-  -i, --include                 print the response status and headers to stderr
+  -i, --include[=true|false]    print the response status and headers to stderr
   -X, --method string           HTTP method (default GET, or POST with --file)
-      --paginate                follow "nextId" and merge all pages (GET only)
+      --paginate[=true|false]   follow "nextId" and merge all pages (GET only)
       --raw-field stringArray   add a string parameter as key=value, never converted to a number or boolean (repeatable)
 ```

@@ -226,6 +226,6 @@ Examples:
   mcrl monitor update 2cSZzK3XfmG -f monitor.yaml --replace
 
 Flags:
-  -f, --file string   JSON or YAML file ("-" for stdin) (required)
-      --replace       send the file as the complete monitor without merging
+  -f, --file string            JSON or YAML file ("-" for stdin) (required)
+      --replace[=true|false]   send the file as the complete monitor without merging
 ```

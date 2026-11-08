@@ -206,6 +206,6 @@ Flags:
       --memo string                     memo
       --name string                     name
       --region string                   AWS region, e.g. ap-northeast-1
-      --replace                         send the -f file as the complete object without merging
+      --replace[=true|false]            send the -f file as the complete object without merging
       --role-arn mcrl aws external-id   IAM role ARN (with an external ID from mcrl aws external-id)
 ```

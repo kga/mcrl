@@ -54,7 +54,7 @@ Flags:
   -f, --file string                JSON or YAML file in the API's format ("-" for stdin); flags override its fields
       --memo string                memo
       --name string                host name
-      --no-refetch                 print the API response ({"success": true}) instead of fetching the updated resource
+      --no-refetch[=true|false]    print the API response ({"success": true}) instead of fetching the updated resource
       --role stringArray           role as <service>:<role> (repeatable; missing services and roles are created)
 ```
 
@@ -162,7 +162,7 @@ Examples:
   mcrl host monitor-status web-1 --expand --jq '.[] | select(.status != "OK") | ._expanded.monitor.name'
 
 Flags:
-      --expand   add monitor names under _expanded
+      --expand[=true|false]   add monitor names under _expanded
 ```
 
 ## mcrl host retire
@@ -189,7 +189,7 @@ Examples:
   mcrl host list --status poweroff --jq '.[].id' | mcrl host retire --yes -
 
 Flags:
-      --no-refetch   print the API response ({"success": true}) instead of fetching the updated resource
+      --no-refetch[=true|false]   print the API response ({"success": true}) instead of fetching the updated resource
 ```
 
 ## mcrl host role
@@ -226,7 +226,7 @@ Examples:
   mcrl host role add web-1 web:app web:batch
 
 Flags:
-      --no-refetch   print the API response ({"success": true}) instead of fetching the updated resource
+      --no-refetch[=true|false]   print the API response ({"success": true}) instead of fetching the updated resource
 ```
 
 ## mcrl host role remove
@@ -253,7 +253,7 @@ Examples:
   mcrl host role remove web-1 web:app web:batch
 
 Flags:
-      --no-refetch   print the API response ({"success": true}) instead of fetching the updated resource
+      --no-refetch[=true|false]   print the API response ({"success": true}) instead of fetching the updated resource
 ```
 
 ## mcrl host role set
@@ -280,7 +280,7 @@ Examples:
   mcrl host role set web-1 web:app web:batch
 
 Flags:
-      --no-refetch   print the API response ({"success": true}) instead of fetching the updated resource
+      --no-refetch[=true|false]   print the API response ({"success": true}) instead of fetching the updated resource
 ```
 
 ## mcrl host status
@@ -307,7 +307,7 @@ Examples:
   mcrl host list --service web --jq '.[].id' | mcrl host status standby -
 
 Flags:
-      --no-refetch   print the API response ({"success": true}) instead of fetching the updated resource
+      --no-refetch[=true|false]   print the API response ({"success": true}) instead of fetching the updated resource
 ```
 
 ## mcrl host update
@@ -342,5 +342,5 @@ Flags:
   -f, --file string                JSON or YAML file in the API's format ("-" for stdin); flags override its fields
       --memo string                memo
       --name string                host name
-      --no-refetch                 print the API response ({"success": true}) instead of fetching the updated resource
+      --no-refetch[=true|false]    print the API response ({"success": true}) instead of fetching the updated resource
 ```
