@@ -608,7 +608,7 @@ func (t *triager) fetchContext(groups []*triageGroup) []*triageOtelOut {
 					}
 				}
 			}
-			latest, err := latestMetricTimes(t.ctx, t.c, probeIDs, func(id string) (int64, int64) {
+			latest, _, err := latestMetricTimes(t.ctx, t.c, probeIDs, func(id string) (int64, int64) {
 				return opened[id] - int64(triageLastMetricLookback/time.Second), opened[id]
 			})
 			for _, g := range detailed {
@@ -1448,12 +1448,14 @@ Notes:
   host-not-working        the host is standby, maintenance or poweroff
   metrics-stopped         connectivity alert whose host last sent metrics
                           before the alert opened. The time comes from
-                          GET /tsdb/latest; for a host with no value there,
-                          from the last point of loadavg5, cpu.user.percentage
-                          or memory.used (the first that has points) in the
-                          7 days before the alert opened. Over a day or more
-                          the points are aggregated, so the time is
-                          approximate. With no point, there is no note.
+                          GET /tsdb/latest; for a host that has these metrics
+                          there only with null values, from the last point
+                          of loadavg5, cpu.user.percentage or memory.used
+                          (the first that has points) in the 7 days before
+                          the alert opened. Over a day or more the points
+                          are aggregated, so the time is approximate. With
+                          no point, or for a host /tsdb/latest knows none
+                          of them for, there is no note.
   status-changed          an alert's latest status change is outside the
                           context range
   recent-annotation       a graph annotation in the range

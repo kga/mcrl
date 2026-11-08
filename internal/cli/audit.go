@@ -82,9 +82,10 @@ type auditor struct {
 	now       time.Time
 	olderThan time.Duration
 
-	lists   map[string][]json.RawMessage // path -> items
-	latest  map[string]int64             // host ID -> newest probe metric time
-	retired map[string]*auditHost        // host ID -> host fetched by ID (nil: gone)
+	lists    map[string][]json.RawMessage // path -> items
+	latest   map[string]int64             // host ID -> newest probe metric time
+	searched map[string]bool              // host IDs whose time-series API was read
+	retired  map[string]*auditHost        // host ID -> host fetched by ID (nil: gone)
 }
 
 func newAuditor(ctx context.Context, c *mackerel.Client, now time.Time, olderThan time.Duration) *auditor {
@@ -171,11 +172,11 @@ func (a *auditor) latestMetrics() (map[string]int64, error) {
 		ids[i] = h.ID
 	}
 	from, to := a.cutoff().Unix(), a.now.Unix()
-	latest, err := latestMetricTimes(a.ctx, a.c, ids, func(string) (int64, int64) { return from, to })
+	latest, searched, err := latestMetricTimes(a.ctx, a.c, ids, func(string) (int64, int64) { return from, to })
 	if err != nil {
 		return nil, err
 	}
-	a.latest = latest
+	a.latest, a.searched = latest, searched
 	return latest, nil
 }
 
@@ -185,30 +186,43 @@ func (a *auditor) latestMetrics() (map[string]int64, error) {
 //
 // GET /tsdb/latest is the cheap first step. For a host whose last points,
 // still returned by the time-series API, were about 20 hours old, it
-// returned the probe metric names with null values. So for the hosts
-// without a value there, the time-series API is read over the range rangeOf
-// gives, probe by probe, and the time of the last point is used. Over a day
-// or more the API returns aggregated points, so that time is approximate.
-func latestMetricTimes(ctx context.Context, c *mackerel.Client, hostIDs []string, rangeOf func(hostID string) (from, to int64)) (map[string]int64, error) {
-	latest, err := latestFromTSDB(ctx, c, hostIDs)
+// returned the probe metric names with null values. So for a host that has
+// a probe metric with a null value there and no value at all, the
+// time-series API is read over the range rangeOf gives, for the null probes
+// only, in auditProbeMetrics order, and the time of the last point of the
+// first that has points is used. searched has the hosts for which that
+// was done. Over a day or more the API returns
+// aggregated points, so that time is approximate.
+//
+// In the responses seen so far, /tsdb/latest left out a metric name that the
+// host had never sent (a host registered through the API only came back as
+// {}, a Windows host had no loadavg5 key) and returned null for one it had
+// sent but not recently. This is not documented API behaviour; it is used
+// only to avoid requests for hosts that never send these metrics. A host
+// with no null probe gets no extra request.
+func latestMetricTimes(ctx context.Context, c *mackerel.Client, hostIDs []string, rangeOf func(hostID string) (from, to int64)) (latest map[string]int64, searched map[string]bool, err error) {
+	latest, nulls, err := latestFromTSDB(ctx, c, hostIDs)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	var missing []string
-	for _, id := range hostIDs {
-		if _, ok := latest[id]; !ok && !slices.Contains(missing, id) {
-			missing = append(missing, id)
-		}
-	}
+	searched = map[string]bool{}
 	var (
 		mu       sync.Mutex
 		firstErr error
 	)
 	r := newTriageRunner()
-	for _, id := range missing {
+	var targets []string
+	for _, id := range hostIDs {
+		if _, ok := latest[id]; !ok && len(nulls[id]) > 0 && !searched[id] {
+			searched[id] = true
+			targets = append(targets, id)
+		}
+	}
+	for _, id := range targets {
+		names := nulls[id]
 		r.Go(func() {
 			from, to := rangeOf(id)
-			t, ok, err := lastPointTime(ctx, c, id, from, to)
+			t, ok, err := lastPointTime(ctx, c, id, names, from, to)
 			mu.Lock()
 			defer mu.Unlock()
 			switch {
@@ -223,15 +237,17 @@ func latestMetricTimes(ctx context.Context, c *mackerel.Client, hostIDs []string
 	}
 	r.Wait()
 	if firstErr != nil {
-		return nil, firstErr
+		return nil, nil, firstErr
 	}
-	return latest, nil
+	return latest, searched, nil
 }
 
-// latestFromTSDB reads GET /tsdb/latest. Metrics with a null value are
-// ignored.
-func latestFromTSDB(ctx context.Context, c *mackerel.Client, hostIDs []string) (map[string]int64, error) {
+// latestFromTSDB reads GET /tsdb/latest. It returns the newest time of the
+// probe metrics that have a value, and for each host the probe metrics that
+// came back with a null value, in auditProbeMetrics order.
+func latestFromTSDB(ctx context.Context, c *mackerel.Client, hostIDs []string) (map[string]int64, map[string][]string, error) {
 	latest := map[string]int64{}
+	nulls := map[string][]string{}
 	for chunk := range slices.Chunk(hostIDs, auditLatestChunk) {
 		q := url.Values{"name": auditProbeMetrics}
 		for _, id := range chunk {
@@ -239,7 +255,7 @@ func latestFromTSDB(ctx context.Context, c *mackerel.Client, hostIDs []string) (
 		}
 		b, err := c.Get(ctx, "/tsdb/latest", q)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		var resp struct {
 			TSDBLatest map[string]map[string]*struct {
@@ -247,25 +263,29 @@ func latestFromTSDB(ctx context.Context, c *mackerel.Client, hostIDs []string) (
 			} `json:"tsdbLatest"`
 		}
 		if err := json.Unmarshal(b, &resp); err != nil {
-			return nil, fmt.Errorf("GET /tsdb/latest: %w", err)
+			return nil, nil, fmt.Errorf("GET /tsdb/latest: %w", err)
 		}
 		for id, metrics := range resp.TSDBLatest {
-			for _, m := range metrics {
-				if m != nil && m.Time > latest[id] {
-					latest[id] = m.Time
+			for _, name := range auditProbeMetrics {
+				m, present := metrics[name]
+				switch {
+				case m != nil:
+					latest[id] = max(latest[id], m.Time)
+				case present:
+					nulls[id] = append(nulls[id], name)
 				}
 			}
 		}
 	}
-	return latest, nil
+	return latest, nulls, nil
 }
 
-// lastPointTime returns the time of the last point of the first probe metric
-// that has points in [from, to] (GET /hosts/<id>/metrics). A probe the host
-// does not have (404) is skipped: Windows hosts have no loadavg5.
-func lastPointTime(ctx context.Context, c *mackerel.Client, hostID string, from, to int64) (int64, bool, error) {
+// lastPointTime returns the time of the last point of the first of names
+// that has points in [from, to] (GET /hosts/<id>/metrics). A metric the host
+// does not have (404) is skipped.
+func lastPointTime(ctx context.Context, c *mackerel.Client, hostID string, names []string, from, to int64) (int64, bool, error) {
 	q := url.Values{"from": {strconv.FormatInt(from, 10)}, "to": {strconv.FormatInt(to, 10)}}
-	for _, name := range auditProbeMetrics {
+	for _, name := range names {
 		q.Set("name", name)
 		pts, err := c.List(ctx, "/hosts/"+url.PathEscape(hostID)+"/metrics", "metrics", q)
 		if isNotFound(err) {
@@ -522,8 +542,14 @@ func (a *auditor) inactiveHosts() ([]auditFinding, error) {
 			continue
 		}
 		msg := fmt.Sprintf("the host is %s and has sent no metric since %s", h.Status, epochString(since))
-		if !ok {
+		switch {
+		case ok:
+		case a.searched[h.ID]:
 			msg = fmt.Sprintf("the host is %s and has sent no metric in the last %s", h.Status, formatOlderThan(a.olderThan))
+		default:
+			// nothing was checked: no probe metric is known for the host
+			msg = fmt.Sprintf("the host is %s and none of %s is known for it (registered %s)",
+				h.Status, strings.Join(auditProbeMetrics, ", "), epochString(h.CreatedAt))
 		}
 		out = append(out, auditFinding{Resource: auditResource{"host", h.ID, h.Name}, Message: msg, Details: details})
 	}
@@ -918,14 +944,19 @@ and cron).
 Checks:
 `+list.String()+`
 Hosts are judged by the newest of `+strings.Join(auditProbeMetrics, ", ")+`
-(GET /tsdb/latest). For a host with no value there, the time-series API
-(GET /hosts/<id>/metrics) is read over the last --older-than, one metric at
-a time in that order until one has points, and the time of the last point
-is used; over a day or more the API returns aggregated points, so that time
-is approximate. A host with no point in that range is reported by
-host-inactive as having sent no metric in the last --older-than (unless it
-was registered within that time); host-stale-metrics does not apply to it,
-since hosts registered through the API only never send these metrics.`, "Read",
+(GET /tsdb/latest). For a host that has some of them there with a null
+value and none with a value, the time-series API (GET /hosts/<id>/metrics)
+is read over the last --older-than for those metrics, one at a time in that
+order until one has points, and the time of the last point is used; over a
+day or more the API returns aggregated points, so that time is approximate.
+Such a host with no point in that range is reported by host-inactive as
+having sent no metric in the last --older-than. A metric that /tsdb/latest
+leaves out is not looked up: in the responses seen so far, that is a metric
+the host never sent. For a host with none of them, such as a host
+registered through the API only, nothing is checked: host-stale-metrics
+does not apply, and host-inactive says that none of the metrics is known
+and gives the registration time (a host registered within --older-than is
+not reported).`, "Read",
 			"GET /api/v0/monitors", "GET /api/v0/downtimes", "GET /api/v0/services", "GET /api/v0/hosts",
 			"GET /api/v0/tsdb/latest", "GET /api/v0/hosts/<id>/metrics", "GET /api/v0/alerts", "GET /api/v0/hosts/<id>",
 			"GET /api/v0/services/<name>/metric-names", "GET /api/v0/channels", "GET /api/v0/notification-groups",
