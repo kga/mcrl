@@ -42,8 +42,8 @@ const (
 	triageConcurrency = 4
 
 	// triageLastMetricLookback is how far before a connectivity alert opened
-	// the time-series API is read for the last metric of its host, when
-	// GET /tsdb/latest has no value for the host.
+	// the time-series API is read, up to now, for the last metric of its
+	// host, when GET /tsdb/latest has null values for the host.
 	triageLastMetricLookback = 7 * 24 * time.Hour
 
 	// triageMaxLogBody is the length (in bytes) a log body is cut to.
@@ -599,17 +599,21 @@ func (t *triager) fetchContext(groups []*triageGroup) []*triageOtelOut {
 	}
 	if len(probeIDs) > 0 {
 		r.Go(func() {
-			// 範囲の終わりは、そのホストの最新の疎通監視のアラートが開いた時刻
+			// 範囲は、そのホストの最も早い疎通監視のアラートが開く 7 日前から今まで。
+			// アラートのあとに送られたメトリクスも拾い、注記は最後の点がアラートより前のときだけ出す
 			opened := map[string]int64{}
 			for _, g := range detailed {
 				for _, a := range g.alerts {
 					if a.Type == "connectivity" {
-						opened[a.HostID] = max(opened[a.HostID], a.OpenedAt)
+						if o, ok := opened[a.HostID]; !ok || a.OpenedAt < o {
+							opened[a.HostID] = a.OpenedAt
+						}
 					}
 				}
 			}
+			now := t.opts.now.Unix()
 			latest, _, failed, err := latestMetricTimes(t.ctx, t.c, probeIDs, func(id string) (int64, int64) {
-				return opened[id] - int64(triageLastMetricLookback/time.Second), opened[id]
+				return opened[id] - int64(triageLastMetricLookback/time.Second), now
 			}, 1) // this already holds one slot of r: look up one host at a time
 			for _, g := range detailed {
 				reported := map[string]bool{}
@@ -1460,11 +1464,12 @@ Notes:
                           GET /tsdb/latest; for a host that has these metrics
                           there only with null values, from the last point
                           of loadavg5, cpu.user.percentage or memory.used
-                          (the first that has points) in the 7 days before
-                          the alert opened. Over a day or more the points
-                          are aggregated, so the time is approximate. With
-                          no point, or for a host /tsdb/latest knows none
-                          of them for, there is no note.
+                          (the first that has points) from 7 days before
+                          the alert opened until now. Over a day or more the
+                          points are aggregated, so the time is approximate.
+                          A last point after the alert opened gives no note.
+                          With no point, or for a host /tsdb/latest knows
+                          none of them for, there is no note.
   status-changed          an alert's latest status change is outside the
                           context range
   recent-annotation       a graph annotation in the range

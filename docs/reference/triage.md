@@ -80,11 +80,12 @@ Notes:
                           GET /tsdb/latest; for a host that has these metrics
                           there only with null values, from the last point
                           of loadavg5, cpu.user.percentage or memory.used
-                          (the first that has points) in the 7 days before
-                          the alert opened. Over a day or more the points
-                          are aggregated, so the time is approximate. With
-                          no point, or for a host /tsdb/latest knows none
-                          of them for, there is no note.
+                          (the first that has points) from 7 days before
+                          the alert opened until now. Over a day or more the
+                          points are aggregated, so the time is approximate.
+                          A last point after the alert opened gives no note.
+                          With no point, or for a host /tsdb/latest knows
+                          none of them for, there is no note.
   status-changed          an alert's latest status change is outside the
                           context range
   recent-annotation       a graph annotation in the range

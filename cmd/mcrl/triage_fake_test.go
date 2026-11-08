@@ -60,11 +60,13 @@ func serveTriageFixture(w http.ResponseWriter, r *http.Request, reqBody []byte) 
 			{"id":"hostSLOW0001","name":"slow-1","status":"poweroff","roles":{}},
 			{"id":"hostNONE0001","name":"none-1","status":"poweroff","roles":{}},
 			{"id":"hostGHOST001","name":"ghost-1","status":"poweroff","roles":{}},
-			{"id":"hostFAIL0001","name":"fail-1","status":"poweroff","roles":{}}]}`,
+			{"id":"hostFAIL0001","name":"fail-1","status":"poweroff","roles":{}},
+			{"id":"hostLATE0001","name":"late-1","status":"poweroff","roles":{}}]}`,
 		"GET /api/v0/hosts/hostRETIRED": `{"host":{"id":"hostRETIRED","name":"old-1","status":"working","isRetired":true,"retiredAt":1799990000,"roles":{}}}`,
 		"GET /api/v0/tsdb/latest": `{"tsdbLatest":{"hostOFF0001":{"loadavg5":{"time":1799999640,"value":0.1}},
 			"hostSLOW0001":{"cpu.user.percentage":null,"memory.used":null},
 			"hostNONE0001":{"loadavg5":null,"cpu.user.percentage":null,"memory.used":null},
+			"hostLATE0001":{"loadavg5":null,"cpu.user.percentage":null,"memory.used":null},
 			"hostFAIL0001":{"loadavg5":null,"cpu.user.percentage":null,"memory.used":null}}}`,
 		// 疎通監視のアラート。ID を指定したときだけ読む（一覧には出ない）。
 		// hostSLOW0001 は loadavg5 が /tsdb/latest になく、最後の点は時系列 API にだけ残っており、hostNONE0001 には点がない
@@ -74,6 +76,9 @@ func serveTriageFixture(w http.ResponseWriter, r *http.Request, reqBody []byte) 
 		"GET /api/v0/alerts/alCONN00004/logs": `{"logs":[]}`,
 		"GET /api/v0/alerts/alCONN00005":      `{"id":"alCONN00005","status":"CRITICAL","monitorId":"monCONN0001","type":"connectivity","hostId":"hostFAIL0001","openedAt":1799999700}`,
 		"GET /api/v0/alerts/alCONN00005/logs": `{"logs":[]}`,
+		// 閉じたアラート。アラートが開いたあとにも点がある（hostLATE0001）
+		"GET /api/v0/alerts/alCONN00006":      `{"id":"alCONN00006","status":"OK","monitorId":"monCONN0001","type":"connectivity","hostId":"hostLATE0001","openedAt":1799999700,"closedAt":1799999900}`,
+		"GET /api/v0/alerts/alCONN00006/logs": `{"logs":[]}`,
 		"GET /api/v0/alerts/alCONN00002/logs": `{"logs":[]}`,
 		"GET /api/v0/alerts/alCONN00003/logs": `{"logs":[]}`,
 		"GET /api/v0/hosts/hostWEB0001/monitored-statuses": `{"monitoredStatuses":[
@@ -125,6 +130,14 @@ func serveTriageFixture(w http.ResponseWriter, r *http.Request, reqBody []byte) 
 			to, _ := strconv.ParseInt(q.Get("to"), 10, 64)
 			if q.Get("name") == "cpu.user.percentage" && from <= 1799990000 && 1799990000 <= to {
 				return writeJSON(http.StatusOK, `{"metrics":[{"time":1799980000,"value":1},{"time":1799990000,"value":2}]}`)
+			}
+			return writeJSON(http.StatusOK, `{"metrics":[]}`)
+		}
+		if strings.HasPrefix(route, "GET /api/v0/hosts/hostLATE0001/") {
+			from, _ := strconv.ParseInt(q.Get("from"), 10, 64)
+			to, _ := strconv.ParseInt(q.Get("to"), 10, 64)
+			if q.Get("name") == "loadavg5" && from <= 1799999800 && 1799999800 <= to {
+				return writeJSON(http.StatusOK, `{"metrics":[{"time":1799990000,"value":1},{"time":1799999800,"value":2}]}`)
 			}
 			return writeJSON(http.StatusOK, `{"metrics":[]}`)
 		}
