@@ -1,7 +1,7 @@
 name: Cross-platform
 
-# macOS・Windows のランナーは Linux より高い（macOS は約 10 倍）ため、
-# リリースのとき（release.yml から呼ばれる）と手動実行のときだけ回す
+# macOS・Windows のテスト。リリースのとき（release.yml から、タグのコミットに対して呼ばれる）と
+# 手動実行で回す。PR と main への push では ci.yml のテストが同じ OS を回している
 on:
   workflow_dispatch:
   workflow_call:
