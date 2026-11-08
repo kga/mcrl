@@ -1,27 +1,23 @@
 version: 2
 updates:
   # 対象の workflow は actions.lock に載っているので、Dependabot が lockfile も同じ PR で更新する。
-  # エコシステムごとに 1 本の PR にまとめて週 1 回。公開直後の版をすぐには取り込まないよう、
-  # cooldown で 7 日待つ（脆弱性の修正は、これとは別に Dependabot security updates がすぐに PR にする）
+  # 依存ごとに 1 本の PR を週 1 回。どの更新で壊れたかが PR 単位でわかり、壊れたものだけ止められる。
+  # patch と minor は CI が通れば自動でマージする（dependabot-auto-merge.yml）。
+  # 公開直後の版をすぐには取り込まないよう、cooldown で 7 日待つ
+  # （脆弱性の修正は、これとは別に Dependabot security updates がすぐに PR にする）
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
     cooldown:
       default-days: 7
-    groups:
-      github-actions:
-        patterns: ["*"]
   - package-ecosystem: gomod
     directory: /
     schedule:
       interval: weekly
     cooldown:
       default-days: 7
-    groups:
-      go-modules:
-        patterns: ["*"]
-  # Dockerfile のベースイメージ（ダイジェストで固定）
+  # Dockerfile のベースイメージ（ダイジェストで固定）。自動マージの対象外
   - package-ecosystem: docker
     directory: /
     schedule:
