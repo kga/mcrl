@@ -1,5 +1,20 @@
 # Changelog
 
+## [v0.4.0](https://github.com/kga/mcrl/compare/v0.3.0...v0.4.0) - 2026-11-08
+
+### New features
+- Exit with 9 when --jq fails after a change was applied by @kga in https://github.com/kga/mcrl/pull/53
+### Other changes
+- Move the design documents to a private repository by @kga in https://github.com/kga/mcrl/pull/38
+- Take the development API key from an mcrl profile by @kga in https://github.com/kga/mcrl/pull/40
+- Show when an alert last changed status in triage by @kga in https://github.com/kga/mcrl/pull/50
+- Name the monitor of check monitoring alerts in triage by @kga in https://github.com/kga/mcrl/pull/51
+- Find the last metric time when /tsdb/latest has no value by @kga in https://github.com/kga/mcrl/pull/49
+- Rank triage's disk% filesystems by usage and show them in used/size pairs by @kga in https://github.com/kga/mcrl/pull/52
+- Show the API key source in error hints and trim api_key_command failures by @kga in https://github.com/kga/mcrl/pull/54
+- Describe array arguments and update-tool output in MCP by @kga in https://github.com/kga/mcrl/pull/55
+- Explain in audit's help that host checks cover every status by @kga in https://github.com/kga/mcrl/pull/56
+
 ## [v0.3.0](https://github.com/kga/mcrl/compare/v0.2.2...v0.3.0) - 2026-11-07
 
 ### New features
