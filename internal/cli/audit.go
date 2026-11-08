@@ -568,7 +568,22 @@ func (a *auditor) staleMetricHosts() ([]auditFinding, error) {
 	var out []auditFinding
 	for _, h := range hosts {
 		last, ok := latest[h.ID]
-		if h.Status != "working" || !ok || !a.olderThanCutoff(last) {
+		if h.Status != "working" {
+			continue
+		}
+		if !ok {
+			// /tsdb/latest returned its probes as null (it has sent them
+			// before) and the time-series API has no point in the range
+			if a.searched[h.ID] {
+				out = append(out, auditFinding{
+					Resource: auditResource{"host", h.ID, h.Name},
+					Message:  fmt.Sprintf("the host is working but its agent has sent no metric in the last %s", formatOlderThan(a.olderThan)),
+					Details:  map[string]any{"status": h.Status},
+				})
+			}
+			continue
+		}
+		if !a.olderThanCutoff(last) {
 			continue
 		}
 		out = append(out, auditFinding{
@@ -949,12 +964,13 @@ value and none with a value, the time-series API (GET /hosts/<id>/metrics)
 is read over the last --older-than for those metrics, one at a time in that
 order until one has points, and the time of the last point is used; over a
 day or more the API returns aggregated points, so that time is approximate.
-Such a host with no point in that range is reported by host-inactive as
-having sent no metric in the last --older-than. A metric that /tsdb/latest
+Such a host with no point in that range is reported as having sent no
+metric in the last --older-than: by host-inactive if it is not working, by
+host-stale-metrics if it is. A metric that /tsdb/latest
 leaves out is not looked up: in the responses seen so far, that is a metric
 the host never sent. For a host with none of them, such as a host
 registered through the API only, nothing is checked: host-stale-metrics
-does not apply, and host-inactive says that none of the metrics is known
+skips it if it is working, and host-inactive says that none of the metrics is known
 and gives the registration time (a host registered within --older-than is
 not reported).`, "Read",
 			"GET /api/v0/monitors", "GET /api/v0/downtimes", "GET /api/v0/services", "GET /api/v0/hosts",

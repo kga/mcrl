@@ -31,11 +31,13 @@ func serveAuditFixture(w http.ResponseWriter, r *http.Request) bool {
 			{"id":"hostSTALE01","name":"stale-1","status":"working","createdAt":1700000000,"roles":{"web":["app"]}},
 			{"id":"hostOFF0001","name":"off-1","status":"poweroff","createdAt":1700000000,"roles":{}},
 			{"id":"hostSLOW0001","name":"slow-1","status":"standby","createdAt":1700000000,"roles":{"web":["app"]}},
+			{"id":"hostGONE0001","name":"gone-1","status":"working","createdAt":1700000000,"roles":{"web":["app"]}},
 			{"id":"hostQUIET001","name":"quiet-1","status":"standby","createdAt":1700000000,"roles":{"web":["app"]}}]}`,
 		"GET /api/v0/tsdb/latest": `{"tsdbLatest":{
 			"hostWEB0001":{"loadavg5":{"time":1799999940,"value":0.1},"memory.used":{"time":1799999880,"value":1}},
 			"hostSTALE01":{"loadavg5":{"time":1797408000,"value":0.1}},
 			"hostSLOW0001":{"cpu.user.percentage":null,"memory.used":null},
+			"hostGONE0001":{"loadavg5":null,"cpu.user.percentage":null,"memory.used":null},
 			"hostQUIET001":{"loadavg5":null,"cpu.user.percentage":null,"memory.used":null}}}`,
 		// hostOFF0001 は /tsdb/latest に出てこない（API だけで登録したホスト）
 		"GET /api/v0/alerts": `{"alerts":[
@@ -57,7 +59,7 @@ func serveAuditFixture(w http.ResponseWriter, r *http.Request) bool {
 	}
 	// 時系列 API: /tsdb/latest が null を返すホストの最後の点は、そちらにだけ残っている。
 	// hostSLOW0001 は Windows のように loadavg5 がなく（/tsdb/latest にも出ない）、約 1 日前の点が
-	// cpu.user.percentage にある。hostQUIET001 は範囲内に点がない。from から to の範囲の点だけを返す
+	// cpu.user.percentage にある。hostQUIET001 と hostGONE0001 は範囲内に点がない。from から to の範囲の点だけを返す
 	if r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/api/v0/hosts/") && strings.HasSuffix(r.URL.Path, "/metrics") {
 		q := r.URL.Query()
 		from, _ := strconv.ParseInt(q.Get("from"), 10, 64)
