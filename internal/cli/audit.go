@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"slices"
 	"strconv"
@@ -16,6 +17,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/kga/mcrl/internal/cli/cmdutil"
+	"github.com/kga/mcrl/internal/httpx"
 	"github.com/kga/mcrl/internal/mackerel"
 	"github.com/kga/mcrl/internal/timeexpr"
 )
@@ -288,7 +290,10 @@ func lastPointTime(ctx context.Context, c *mackerel.Client, hostID string, names
 	for _, name := range names {
 		q.Set("name", name)
 		pts, err := c.List(ctx, "/hosts/"+url.PathEscape(hostID)+"/metrics", "metrics", q)
-		if isNotFound(err) {
+		// Only 404 ("metric not found") says the host does not have the
+		// metric. A 400 is a bad request, not an absent metric.
+		var ae *httpx.APIError
+		if errors.As(err, &ae) && ae.StatusCode == http.StatusNotFound {
 			continue
 		}
 		if err != nil {

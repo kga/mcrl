@@ -90,3 +90,36 @@ func serveAuditFixture(w http.ResponseWriter, r *http.Request) bool {
 	io.WriteString(w, body)
 	return true
 }
+
+// serveAuditFaultFixture answers for a small organization whose hosts all
+// have null probes in /tsdb/latest: hostOKAY0001 has a point in the
+// time-series API, hostBAD40001 answers 400, hostBAD50001 answers 500 and
+// hostNOTFOUND1 answers 404 ("metric not found") for every metric.
+func serveAuditFaultFixture(w http.ResponseWriter, r *http.Request) bool {
+	reply := func(status int, body string) bool {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(status)
+		io.WriteString(w, body)
+		return true
+	}
+	const nulls = `{"loadavg5":null,"cpu.user.percentage":null,"memory.used":null}`
+	switch r.Method + " " + r.URL.Path {
+	case "GET /api/v0/hosts":
+		return reply(http.StatusOK, `{"hosts":[
+			{"id":"hostOKAY0001","name":"okay-1","status":"standby","createdAt":1700000000,"roles":{"web":["app"]}},
+			{"id":"hostBAD40001","name":"bad400-1","status":"standby","createdAt":1700000000,"roles":{"web":["app"]}},
+			{"id":"hostBAD50001","name":"bad500-1","status":"working","createdAt":1700000000,"roles":{"web":["app"]}},
+			{"id":"hostNOTFOUND1","name":"nf-1","status":"standby","createdAt":1700000000,"roles":{"web":["app"]}}]}`)
+	case "GET /api/v0/tsdb/latest":
+		return reply(http.StatusOK, `{"tsdbLatest":{"hostOKAY0001":`+nulls+`,"hostBAD40001":`+nulls+`,"hostBAD50001":`+nulls+`,"hostNOTFOUND1":`+nulls+`}}`)
+	case "GET /api/v0/hosts/hostOKAY0001/metrics":
+		return reply(http.StatusOK, `{"metrics":[{"time":1799990000,"value":1}]}`)
+	case "GET /api/v0/hosts/hostBAD40001/metrics":
+		return reply(http.StatusBadRequest, `{"error":{"message":"Bad request."}}`)
+	case "GET /api/v0/hosts/hostBAD50001/metrics":
+		return reply(http.StatusInternalServerError, `{"error":{"message":"Internal error"}}`)
+	case "GET /api/v0/hosts/hostNOTFOUND1/metrics":
+		return reply(http.StatusNotFound, `{"error":{"message":"metric not found"}}`)
+	}
+	return false
+}

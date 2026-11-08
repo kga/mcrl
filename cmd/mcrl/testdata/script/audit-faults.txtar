@@ -1,0 +1,5 @@
+env MACKEREL_APIKEY=audit-fault-key
+
+# 時系列 API が 400 や 500 を返したら、メトリクスがないとは見なさず、エラーにする
+! exec mcrl audit --now @1800000000 --check host-inactive
+stderr 'host hostBAD(40001|50001): loadavg5'
