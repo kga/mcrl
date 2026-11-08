@@ -32,7 +32,9 @@ Output:
    "unknown", "groups"}, "groups": [...], "otel": [...]}
 Each group:
   "status", "openedAt" (earliest), "lastOpenedAt" (newest),
-  "monitor"   the monitor as the API returns it
+  "monitor"   the monitor as the API returns it. Check monitors are not in
+              the monitor list, so they are looked up by ID and shown as
+              {"id", "name", "type": "check"} (no "name" if the lookup fails)
   "alerts"    the alerts as the API returns them, newest first, with
               "host": {"id", "name", "status", "roles", "isRetired",
               "cpuCount", "lastMetricAt" (connectivity alerts)}, and
@@ -93,7 +95,7 @@ keep --window at 15m or less to get them.
 Requests run 4 at a time. When a request fails, the rest is still returned
 with the failure in "errors", and the exit code is 0.
 
-API: GET /api/v0/alerts, GET /api/v0/alerts/<id> (alert IDs), GET /api/v0/alerts/<id>/logs, GET /api/v0/monitors, GET /api/v0/hosts, GET /api/v0/hosts/<id>, GET /api/v0/tsdb/latest, GET /api/v0/hosts/<id>/monitored-statuses, GET /api/v0/hosts/<id>/metrics, GET /api/v0/hosts/<id>/metric-names, GET /api/v0/services/<name>/metrics, GET /api/v0/services/<name>/metric-names, GET /api/v0/graph-annotations, GET /api/v0/downtimes, POST /api/v0/logs (--otel-service), POST /api/v0/traces (--otel-service)
+API: GET /api/v0/alerts, GET /api/v0/alerts/<id> (alert IDs), GET /api/v0/alerts/<id>/logs, GET /api/v0/monitors, GET /api/v0/monitoring/checks/<id>, GET /api/v0/hosts, GET /api/v0/hosts/<id>, GET /api/v0/tsdb/latest, GET /api/v0/hosts/<id>/monitored-statuses, GET /api/v0/hosts/<id>/metrics, GET /api/v0/hosts/<id>/metric-names, GET /api/v0/services/<name>/metrics, GET /api/v0/services/<name>/metric-names, GET /api/v0/graph-annotations, GET /api/v0/downtimes, POST /api/v0/logs (--otel-service), POST /api/v0/traces (--otel-service)
 API key permission: Read
 
 Examples:

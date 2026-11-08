@@ -2,7 +2,7 @@ env MACKEREL_APIKEY=triage-key
 
 # 監視ごとにまとめ、重い状態 → 新しい順に並べる。上位 --max-groups 件だけ context を持つ
 exec mcrl triage --now @1800000000 --jq '.summary'
-stdout '^\{"alerts":8,"critical":4,"groups":6,"open":8,"unknown":0,"warning":4\}$'
+stdout '^\{"alerts":11,"critical":4,"groups":8,"open":11,"unknown":0,"warning":7\}$'
 rm $WORK/requests.log
 exec mcrl triage --now @1800000000 --jq '.groups[] | "\(.status) \(.monitor.id) \(.alerts | length) \(.context != null) \([.alerts[].id] | join(","))"'
 cmp stdout want-groups.txt
@@ -16,6 +16,17 @@ grep -count=1 'GET /api/v0/hosts/hostRETIRED$' $WORK/requests.log
 ! grep 'POST|PUT|DELETE' $WORK/requests.log
 # 範囲外のグループ（swap）の周辺情報は取らない
 ! grep 'hostWEB0002/metrics\?.*swap' $WORK/requests.log
+
+# check 監視のアラートは GET /monitors にないので、ID で引いて名前を付ける。グループごとに 1 回
+rm $WORK/requests.log
+exec mcrl triage --now @1800000000 --jq '.groups[] | select(.alerts[0].type == "check") | .monitor | tojson'
+cmp stdout want-checks.txt
+grep -count=1 'GET /api/v0/monitoring/checks/chkPING0001$' $WORK/requests.log
+grep -count=1 'GET /api/v0/monitoring/checks/chkGONE0001$' $WORK/requests.log
+exec mcrl triage --now @1800000000 --jq '.groups[] | select(.monitor.id == "chkPING0001") | .errors | length'
+stdout '^0$'
+exec mcrl triage --now @1800000000 --jq '[.. | strings | select(. == "null")] | length'
+stdout '^0$'
 
 # 注記
 exec mcrl triage --now @1800000000 --jq '.groups[] | "\(.monitor.id) [\([.notes[].kind] | join(","))]"'
@@ -90,7 +101,7 @@ cmp stdout want-next.txt
 # --max-groups / --max-hosts
 rm $WORK/requests.log
 exec mcrl triage --now @1800000000 --max-groups 3 --max-hosts 1 --jq '[.groups[] | .context != null] | map(tostring) | join(",")'
-stdout '^true,true,true,false,false,false$'
+stdout '^true,true,true,false,false,false,false,false$'
 exec mcrl triage --now @1800000000 --max-groups 3 --max-hosts 1 --jq '[.groups[2].context.metrics[].hostId] | unique | join(",")'
 stdout '^hostWEB0002$'
 ! grep 'hostWEB0003/(metrics|monitored-statuses)' $WORK/requests.log
@@ -100,7 +111,7 @@ stdout '^mcrl triage --monitor id:monCTR00001$'
 
 # 絞り込み
 exec mcrl triage --now @1800000000 --status warning --jq '[.groups[].monitor.id] | join(",")'
-stdout '^monCTR00001,monDISK0001,monSVC00001,monSWAP0001$'
+stdout '^monCTR00001,monDISK0001,monSVC00001,monSWAP0001,chkPING0001,chkGONE0001$'
 exec mcrl triage --now @1800000000 --host web-1 --jq '[.groups[].alerts[].id] | join(",")'
 stdout '^alCPU000001,alDISK00001$'
 exec mcrl triage --now @1800000000 --service web --jq '[.groups[].monitor.id] | join(",")'
@@ -164,6 +175,11 @@ CRITICAL monDISK0001 3 true alDISK00002,alDISK00001,alDISK00003
 WARNING monCTR00001 1 true alCTR000001
 WARNING monSVC00001 1 true alSVC000001
 WARNING monSWAP0001 1 false alSWAP00001
+WARNING chkPING0001 2 false alCHK000001,alCHK000002
+WARNING chkGONE0001 1 false alCHK000003
+-- want-checks.txt --
+{"id":"chkPING0001","name":"check-ping-sample","type":"check"}
+{"id":"chkGONE0001","type":"check"}
 -- want-notes.txt --
 monCONN0001 [host-not-working,metrics-stopped]
 monCPU00001 [monitor-muted,in-downtime,recent-annotation,other-monitors-failing]
@@ -171,6 +187,8 @@ monDISK0001 [in-downtime,status-changed,recent-annotation,many-hosts,other-monit
 monCTR00001 [host-retired]
 monSVC00001 [in-downtime,recent-annotation]
 monSWAP0001 []
+chkPING0001 []
+chkGONE0001 []
 -- want-metrics.txt --
 cpu% hostWEB0001 cpu.idle.percentage
 disk% hostWEB0002 filesystem.root.size
@@ -192,6 +210,7 @@ swap% hostWEB0002 memory.swap_total
 monDISK0001 monitors: host hostWEB0003: Forbidden (HTTP 403 GET /api/v0/hosts/hostWEB0003/monitored-statuses)
 monCTR00001 metrics: container-cpu% is a rate monitor whose source metrics are unknown, so no metric is shown; the alert's value has the rate
 monSVC00001 alertLogs: alert alSVC000001: Forbidden (HTTP 403 GET /api/v0/alerts/alSVC000001/logs)
+chkGONE0001 monitors: check chkGONE0001: Not found (HTTP 404 GET /api/v0/monitoring/checks/chkGONE0001)
 -- want-others.txt --
 hostWEB0002 swap WARNING
 hostWEB0001 cpu high CRITICAL

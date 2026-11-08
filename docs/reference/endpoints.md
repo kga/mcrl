@@ -58,7 +58,7 @@ Every endpoint in the index of the [Mackerel API documents](https://mackerel.io/
 | Endpoint | API key permission | Commands |
 |---|---|---|
 | [`GET /api/v0/monitoring/checks`](https://mackerel.io/api-docs/entry/check-monitoring#list) | Read | [`mcrl check get`](check.md#mcrl-check-get), [`mcrl check list`](check.md#mcrl-check-list) |
-| [`GET /api/v0/monitoring/checks/<monitorId>`](https://mackerel.io/api-docs/entry/check-monitoring#retrieve) | Read | [`mcrl check get`](check.md#mcrl-check-get) |
+| [`GET /api/v0/monitoring/checks/<monitorId>`](https://mackerel.io/api-docs/entry/check-monitoring#retrieve) | Read | [`mcrl check get`](check.md#mcrl-check-get), [`mcrl triage`](triage.md#mcrl-triage) |
 | [`POST /api/v0/monitoring/checks/report`](https://mackerel.io/api-docs/entry/check-monitoring#post) | Read, Write | [`mcrl check report`](check.md#mcrl-check-report), [`mcrl check run`](check.md#mcrl-check-run) |
 
 ## Metadata

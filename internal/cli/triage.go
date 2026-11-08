@@ -338,6 +338,7 @@ func (t *triager) run() (*triageOutput, error) {
 	for i, g := range groups {
 		g.detailed = i < t.opts.maxGroups
 	}
+	t.fetchChecks(groups)
 	t.fetchRetiredHosts(groups)
 	for _, g := range groups {
 		t.prepare(g)
@@ -379,6 +380,40 @@ func (t *triager) monitorOf(id string) (triageMonitor, json.RawMessage) {
 	var m triageMonitor
 	_ = json.Unmarshal(raw, &m)
 	return m, raw
+}
+
+// fetchChecks names the monitors of check monitoring alerts. GET /monitors
+// does not list check monitors, so a group whose monitor is not in the index
+// and whose alerts are type "check" is looked up by ID, once per group. When
+// the lookup fails (a deleted check is a 404), the monitor stays {id, type}
+// and the failure goes into the group's errors.
+func (t *triager) fetchChecks(groups []*triageGroup) {
+	r := newTriageRunner()
+	for _, g := range groups {
+		if g.monRaw != nil || g.monitorID == "" || g.alerts[0].Type != "check" {
+			continue
+		}
+		r.Go(func() {
+			b, err := t.c.Get(t.ctx, "/monitoring/checks/"+url.PathEscape(g.monitorID), nil)
+			if err != nil {
+				t.addError(g, "monitors", fmt.Errorf("check %s: %w", g.monitorID, err))
+				return
+			}
+			name := mackerel.StringField(mackerel.UnwrapIf(b, "check"), "name")
+			if name == "" {
+				return
+			}
+			raw, err := json.Marshal(map[string]string{"id": g.monitorID, "name": name, "type": "check"})
+			if err != nil {
+				t.addError(g, "monitors", fmt.Errorf("check %s: %w", g.monitorID, err))
+				return
+			}
+			t.mu.Lock()
+			g.monitor.Name, g.monRaw = name, raw
+			t.mu.Unlock()
+		})
+	}
+	r.Wait()
 }
 
 // keep applies --status, --monitor, --host, --service and --role.
@@ -1386,7 +1421,9 @@ Output:
    "unknown", "groups"}, "groups": [...], "otel": [...]}
 Each group:
   "status", "openedAt" (earliest), "lastOpenedAt" (newest),
-  "monitor"   the monitor as the API returns it
+  "monitor"   the monitor as the API returns it. Check monitors are not in
+              the monitor list, so they are looked up by ID and shown as
+              {"id", "name", "type": "check"} (no "name" if the lookup fails)
   "alerts"    the alerts as the API returns them, newest first, with
               "host": {"id", "name", "status", "roles", "isRetired",
               "cpuCount", "lastMetricAt" (connectivity alerts)}, and
@@ -1447,7 +1484,7 @@ keep --window at 15m or less to get them.
 Requests run 4 at a time. When a request fails, the rest is still returned
 with the failure in "errors", and the exit code is 0.`, "Read",
 			"GET /api/v0/alerts", "GET /api/v0/alerts/<id> (alert IDs)", "GET /api/v0/alerts/<id>/logs",
-			"GET /api/v0/monitors", "GET /api/v0/hosts", "GET /api/v0/hosts/<id>", "GET /api/v0/tsdb/latest",
+			"GET /api/v0/monitors", "GET /api/v0/monitoring/checks/<id>", "GET /api/v0/hosts", "GET /api/v0/hosts/<id>", "GET /api/v0/tsdb/latest",
 			"GET /api/v0/hosts/<id>/monitored-statuses", "GET /api/v0/hosts/<id>/metrics", "GET /api/v0/hosts/<id>/metric-names",
 			"GET /api/v0/services/<name>/metrics", "GET /api/v0/services/<name>/metric-names",
 			"GET /api/v0/graph-annotations", "GET /api/v0/downtimes",

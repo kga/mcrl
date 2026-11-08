@@ -21,6 +21,8 @@ import (
 //	monCTR00001 WARNING   retired host, container-cpu%
 //	monSVC00001 WARNING   service monitor of web (its status history is denied)
 //	monSWAP0001 WARNING   web-2, swap% (the host has no memory.swap_used)
+//	chkPING0001 WARNING   check monitoring, not in GET /monitors; GET /monitoring/checks/<id> names it
+//	chkGONE0001 WARNING   check monitoring of a deleted check (404)
 func serveTriageFixture(w http.ResponseWriter, r *http.Request, reqBody []byte) bool {
 	writeJSON := func(status int, body string) bool {
 		w.Header().Set("Content-Type", "application/json")
@@ -44,9 +46,13 @@ func serveTriageFixture(w http.ResponseWriter, r *http.Request, reqBody []byte) 
 			{"id":"alDISK00002","status":"WARNING","monitorId":"monDISK0001","type":"host","hostId":"hostWEB0002","value":85,"openedAt":1799999500},
 			{"id":"alCPU000001","status":"CRITICAL","monitorId":"monCPU00001","type":"host","hostId":"hostWEB0001","value":95,"openedAt":1799999600},
 			{"id":"alCONN00001","status":"CRITICAL","monitorId":"monCONN0001","type":"connectivity","hostId":"hostOFF0001","message":"no metric","openedAt":1799999700},
-			{"id":"alCTR000001","status":"WARNING","monitorId":"monCTR00001","type":"host","hostId":"hostRETIRED","value":88,"openedAt":1799999800}]}`,
-		"GET /api/v0/alerts/alDISK00001":      `{"id":"alDISK00001","status":"CRITICAL","monitorId":"monDISK0001","type":"host","hostId":"hostWEB0001","value":96.2,"openedAt":1799999400}`,
-		"GET /api/v0/alerts/alDISK00001/logs": `{"logs":[{"id":"log1","status":"CRITICAL","trigger":"monitoring","createdAt":1799999400}]}`,
+			{"id":"alCTR000001","status":"WARNING","monitorId":"monCTR00001","type":"host","hostId":"hostRETIRED","value":88,"openedAt":1799999800},
+			{"id":"alCHK000001","status":"WARNING","monitorId":"chkPING0001","type":"check","message":"timeout","openedAt":1799990000},
+			{"id":"alCHK000002","status":"WARNING","monitorId":"chkPING0001","type":"check","message":"timeout","openedAt":1799989900},
+			{"id":"alCHK000003","status":"WARNING","monitorId":"chkGONE0001","type":"check","message":"timeout","openedAt":1799989000}]}`,
+		"GET /api/v0/monitoring/checks/chkPING0001": `{"check":{"id":"chkPING0001","name":"check-ping-sample"}}`,
+		"GET /api/v0/alerts/alDISK00001":            `{"id":"alDISK00001","status":"CRITICAL","monitorId":"monDISK0001","type":"host","hostId":"hostWEB0001","value":96.2,"openedAt":1799999400}`,
+		"GET /api/v0/alerts/alDISK00001/logs":       `{"logs":[{"id":"log1","status":"CRITICAL","trigger":"monitoring","createdAt":1799999400}]}`,
 		// 先頭の CRITICAL から、範囲（〜1799999900）の外で WARNING に変わった
 		"GET /api/v0/alerts/alDISK00002/logs": `{"logs":[
 			{"id":"log3","status":"WARNING","trigger":"monitoring","createdAt":1799999950},
@@ -91,6 +97,8 @@ func serveTriageFixture(w http.ResponseWriter, r *http.Request, reqBody []byte) 
 			return false
 		}
 		return writeJSON(http.StatusOK, `{"logs":[{"id":"log-`+id+`","status":"CRITICAL","trigger":"monitoring","createdAt":`+openedAt+`}]}`)
+	case route == "GET /api/v0/monitoring/checks/chkGONE0001":
+		return writeJSON(http.StatusNotFound, `{"error":{"message":"Not found"}}`)
 	case route == "GET /api/v0/hosts/hostWEB0003/monitored-statuses":
 		// 一部の取得の失敗: 他の情報は返り、errors に入る
 		return writeJSON(http.StatusForbidden, `{"error":{"message":"Forbidden"}}`)
