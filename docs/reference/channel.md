@@ -42,16 +42,16 @@ Examples:
   mcrl channel create --type email --name oncall --email oncall@example.com --event alert --event hostRetire
 
 Flags:
-      --add-to-default-group   add to the default notification group (create only)
-      --email stringArray      email address (email channels, repeatable)
-      --event stringArray      events to notify (repeatable): alert, alertGroup, hostStatus, hostRegister, hostRetire, monitor
-  -f, --file string            JSON or YAML file in the API's format ("-" for stdin)
-      --graph-image            attach graph images (slack, webhook)
-      --mention stringArray    Slack mention per status as status=text, e.g. "critical=<!channel>" (repeatable)
-      --name string            name
-      --type string            email, slack or webhook (create only)
-      --url string             Slack incoming webhook URL or webhook URL
-      --user stringArray       organization member ID (email channels, repeatable)
+      --add-to-default-group[=true|false]   add to the default notification group (create only)
+      --email stringArray                   email address (email channels, repeatable)
+      --event stringArray                   events to notify (repeatable): alert, alertGroup, hostStatus, hostRegister, hostRetire, monitor
+  -f, --file string                         JSON or YAML file in the API's format ("-" for stdin)
+      --graph-image[=true|false]            attach graph images (slack, webhook)
+      --mention stringArray                 Slack mention per status as status=text, e.g. "critical=<!channel>" (repeatable)
+      --name string                         name
+      --type string                         email, slack or webhook (create only)
+      --url string                          Slack incoming webhook URL or webhook URL
+      --user stringArray                    organization member ID (email channels, repeatable)
 ```
 
 ## mcrl channel delete
@@ -164,15 +164,15 @@ Examples:
   mcrl channel update ops --graph-image
 
 Flags:
-      --add-to-default-group   add to the default notification group (create only)
-      --email stringArray      email address (email channels, repeatable)
-      --event stringArray      events to notify (repeatable): alert, alertGroup, hostStatus, hostRegister, hostRetire, monitor
-  -f, --file string            JSON or YAML file with the fields to change ("-" for stdin)
-      --graph-image            attach graph images (slack, webhook)
-      --mention stringArray    Slack mention per status as status=text, e.g. "critical=<!channel>" (repeatable)
-      --name string            name
-      --replace                send the -f file as the complete object without merging
-      --type string            email, slack or webhook (create only)
-      --url string             Slack incoming webhook URL or webhook URL
-      --user stringArray       organization member ID (email channels, repeatable)
+      --add-to-default-group[=true|false]   add to the default notification group (create only)
+      --email stringArray                   email address (email channels, repeatable)
+      --event stringArray                   events to notify (repeatable): alert, alertGroup, hostStatus, hostRegister, hostRetire, monitor
+  -f, --file string                         JSON or YAML file with the fields to change ("-" for stdin)
+      --graph-image[=true|false]            attach graph images (slack, webhook)
+      --mention stringArray                 Slack mention per status as status=text, e.g. "critical=<!channel>" (repeatable)
+      --name string                         name
+      --replace[=true|false]                send the -f file as the complete object without merging
+      --type string                         email, slack or webhook (create only)
+      --url string                          Slack incoming webhook URL or webhook URL
+      --user stringArray                    organization member ID (email channels, repeatable)
 ```

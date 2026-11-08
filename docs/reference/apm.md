@@ -30,7 +30,7 @@ Examples:
   mcrl apm db --service web --since 10m --sort average --limit 5
 
 Flags:
-      --asc                ascending order
+      --asc[=true|false]   ascending order
       --env string         deployment environment
       --limit int          maximum number of rows (0 = all) (default 20)
       --namespace string   service namespace
@@ -61,7 +61,7 @@ Examples:
   mcrl apm http --service web --since 10m --sort average --limit 5
 
 Flags:
-      --asc                ascending order
+      --asc[=true|false]   ascending order
       --env string         deployment environment
       --limit int          maximum number of rows (0 = all) (default 20)
       --method string      HTTP method

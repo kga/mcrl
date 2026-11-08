@@ -48,7 +48,7 @@ To load completions for every new session, execute once:
 You will need to start a new shell for this setup to take effect.
 
 Flags:
-      --no-descriptions   disable completion descriptions
+      --no-descriptions[=true|false]   disable completion descriptions
 ```
 
 ## mcrl completion fish
@@ -72,7 +72,7 @@ To load completions for every new session, execute once:
 You will need to start a new shell for this setup to take effect.
 
 Flags:
-      --no-descriptions   disable completion descriptions
+      --no-descriptions[=true|false]   disable completion descriptions
 ```
 
 ## mcrl completion powershell
@@ -93,7 +93,7 @@ To load completions for every new session, add the output of the above command
 to your powershell profile.
 
 Flags:
-      --no-descriptions   disable completion descriptions
+      --no-descriptions[=true|false]   disable completion descriptions
 ```
 
 ## mcrl completion zsh
@@ -128,5 +128,5 @@ To load completions for every new session, execute once:
 You will need to start a new shell for this setup to take effect.
 
 Flags:
-      --no-descriptions   disable completion descriptions
+      --no-descriptions[=true|false]   disable completion descriptions
 ```

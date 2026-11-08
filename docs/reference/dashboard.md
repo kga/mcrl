@@ -158,9 +158,9 @@ Examples:
   mcrl dashboard update overview -f widgets.yaml
 
 Flags:
-  -f, --file string       JSON or YAML file with the fields to change ("-" for stdin)
-      --memo string       memo
-      --replace           send the -f file as the complete object without merging
-      --title string      title
-      --url-path string   URL path, e.g. "web/overview"
+  -f, --file string            JSON or YAML file with the fields to change ("-" for stdin)
+      --memo string            memo
+      --replace[=true|false]   send the -f file as the complete object without merging
+      --title string           title
+      --url-path string        URL path, e.g. "web/overview"
 ```

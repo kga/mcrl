@@ -58,9 +58,9 @@ Examples:
   op read op://Infra/mackerel/credential | mcrl auth login --profile kcps --with-token --base-url https://kcps-mackerel.io
 
 Flags:
-      --base-url string    API base URL to save in the profile (e.g. https://kcps-mackerel.io)
-      --insecure-storage   store the key in plaintext in the config file
-      --with-token         read the API key from stdin
+      --base-url string                 API base URL to save in the profile (e.g. https://kcps-mackerel.io)
+      --insecure-storage[=true|false]   store the key in plaintext in the config file
+      --with-token[=true|false]         read the API key from stdin
 ```
 
 ## mcrl auth logout

@@ -107,9 +107,9 @@ Examples:
   echo '{"version": "1.2.3"}' | mcrl metadata set deploy --service web -f -
 
 Flags:
-  -f, --file string      JSON or YAML file ("-" for stdin) (required)
-      --host string      host (ID, name or cid:<custom identifier>)
-      --no-refetch       print the API response ({"success": true}) instead of fetching the updated resource
-      --role string      role as <service>:<role>
-      --service string   service name
+  -f, --file string               JSON or YAML file ("-" for stdin) (required)
+      --host string               host (ID, name or cid:<custom identifier>)
+      --no-refetch[=true|false]   print the API response ({"success": true}) instead of fetching the updated resource
+      --role string               role as <service>:<role>
+      --service string            service name
 ```

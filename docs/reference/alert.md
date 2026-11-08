@@ -65,7 +65,7 @@ Examples:
   mcrl alert get 2bj4Jd2KFaP --expand --jq '._expanded.monitor.name'
 
 Flags:
-      --expand   add monitor and host names under _expanded
+      --expand[=true|false]   add monitor and host names under _expanded
 ```
 
 ## mcrl alert list
@@ -95,13 +95,13 @@ Examples:
   mcrl alert list --all --limit 0 -o jsonl > alerts.jsonl
 
 Flags:
-  -a, --all                  include closed alerts
-      --expand               add monitor and host names under _expanded
-      --host string          only alerts of this host (ID or name)
-      --limit int            maximum number of alerts (0 = all) (default 100)
-      --monitor string       only alerts of this monitor (ID or name)
-      --status stringArray   only alerts in this status (repeatable): OK, WARNING, CRITICAL, UNKNOWN
-      --type stringArray     only alerts of this monitor type (repeatable)
+  -a, --all[=true|false]      include closed alerts
+      --expand[=true|false]   add monitor and host names under _expanded
+      --host string           only alerts of this host (ID or name)
+      --limit int             maximum number of alerts (0 = all) (default 100)
+      --monitor string        only alerts of this monitor (ID or name)
+      --status stringArray    only alerts in this status (repeatable): OK, WARNING, CRITICAL, UNKNOWN
+      --type stringArray      only alerts of this monitor type (repeatable)
 ```
 
 ## mcrl alert logs

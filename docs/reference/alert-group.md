@@ -166,7 +166,7 @@ Flags:
       --monitor stringArray            monitor scope, ID or name (repeatable; replaces the list)
       --name string                    name
       --notification-interval string   re-notify interval, e.g. "1h"
-      --replace                        send the -f file as the complete object without merging
+      --replace[=true|false]           send the -f file as the complete object without merging
       --role stringArray               role scope as <service>:<role> (repeatable; replaces the list)
       --service stringArray            service scope (repeatable; replaces the list)
 ```

@@ -60,7 +60,7 @@ Examples:
   mcrl log search --saved 'checkout errors' --since 7d --limit 0 -o jsonl > errors.jsonl
 
 Flags:
-      --asc                    oldest first (default: newest first)
+      --asc[=true|false]       oldest first (default: newest first)
       --keyword stringArray    text the body contains (repeatable; all must match)
       --limit int              maximum number of log entries (0 = all) (default 100)
       --namespace string       service namespace (service.namespace)

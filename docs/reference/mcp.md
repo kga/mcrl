@@ -37,6 +37,6 @@ Examples:
   claude mcp add mcrl-write -- mcrl mcp --allow-write
 
 Flags:
-      --allow-destructive   also expose commands that delete or retire resources (implies --allow-write)
-      --allow-write         also expose commands that create or update resources
+      --allow-destructive[=true|false]   also expose commands that delete or retire resources (implies --allow-write)
+      --allow-write[=true|false]         also expose commands that create or update resources
 ```
