@@ -1,0 +1,59 @@
+# 認証まわりの診断: キーの出どころのヒント、api_key_command の stderr の切り詰め、引用符のヒント
+
+# 見つからないとき、環境変数のキーが使われたことをヒントに出す（JSON）
+env MACKEREL_APIKEY=good-key
+! exec mcrl api /hosts/abcdefghijk
+grep '^4$' $WORK/exitcode
+stderr '"hint":"using the API key from env:MACKEREL_APIKEY \(profile \\"default\\", http://127.0.0.1:[0-9]+\)"'
+! stderr 'good-key'
+
+# 認証エラーでは既存のヒントの後ろに足す
+env MACKEREL_APIKEY=bad
+! exec mcrl api /org
+grep '^3$' $WORK/exitcode
+env MACKEREL_APIKEY=good-key
+stderr '"hint":"check the API key with `mcrl auth status`; using the API key from env:MACKEREL_APIKEY'
+
+# api_key_command が大量の stderr を出して失敗する
+env MACKEREL_APIKEY=
+mkdir $HOME/.config/mcrl
+cp config.toml $HOME/.config/mcrl/config.toml
+! exec mcrl api /org
+grep '^3$' $WORK/exitcode
+stderr 'exit status 1: line 1\\nline 2\\nline 3\\n… \(17 more lines\)'
+! stderr 'line 4'
+stderr 'api_key_command runs without a shell and splits arguments on spaces; quote arguments'
+
+! exec mcrl doctor --jq '.checks[] | select(.name == "apiKey") | .detail'
+stdout '^… \(17 more lines\)'
+! stdout 'line 4'
+stdout 'hint: api_key_command runs without a shell'
+
+# 見つからないプログラムでも引用符のヒントを出す
+cp config-missing.toml $HOME/.config/mcrl/config.toml
+! exec mcrl api /org
+stderr 'api_key_command runs without a shell'
+
+# 成功するコマンドでは出さない（キーの出どころは表示する）
+cp config-ok.toml $HOME/.config/mcrl/config.toml
+! exec mcrl api /hosts/abcdefghijk
+stderr '"hint":"using the API key from api_key_command \(profile'
+! stderr 'without a shell'
+exec mcrl doctor --jq '.checks[] | select(.name == "apiKey") | .detail'
+! stdout 'without a shell'
+
+-- config.toml --
+[profiles.default]
+api_key_command = "sh noisy.sh"
+-- config-missing.toml --
+[profiles.default]
+api_key_command = "mcrl-no-such-program --flag"
+-- config-ok.toml --
+[profiles.default]
+api_key_command = "sh ok.sh"
+-- noisy.sh --
+i=1
+while [ $i -le 20 ]; do echo "line $i" >&2; i=$((i+1)); done
+exit 1
+-- ok.sh --
+echo good-key

@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -131,7 +132,12 @@ Exits with 1 when any check fails.`,
 				}
 				add("baseUrl", "ok", "%s (from %s)", conn.BaseURL, conn.BaseURLSource)
 				if connErr != nil {
-					add("apiKey", "fail", "%v", connErr)
+					detail := connErr.Error()
+					var he *cmdutil.HintError
+					if errors.As(connErr, &he) {
+						detail += "\nhint: " + he.Hint
+					}
+					add("apiKey", "fail", "%s", detail)
 					conn = nil
 				} else {
 					add("apiKey", "ok", "found in %s", conn.Key.Source)

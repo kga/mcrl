@@ -85,6 +85,7 @@ mcrl uses the first key it finds:
 - `MACKEREL_APIKEY` is the only environment variable mcrl reads for the key, the same one other Mackerel tools use.
 - The environment variable wins even over `--profile`. When you pass `--profile` and the key still comes from `MACKEREL_APIKEY`, mcrl prints a warning, so that you do not use another organization's key by accident.
 - `mcrl auth status` and `--debug` show which source was used. `--debug` never prints the key.
+- When a command fails with "not found" or an authentication error, the error's hint says which source the key came from, and the profile and base URL used (for example `using the API key from env:MACKEREL_APIKEY (profile "work", https://api.mackerelio.com)`). If a resource is "not found" unexpectedly, check that `MACKEREL_APIKEY` (which wins over the profile) is not set for another organization.
 - `mcrl auth token` prints the key of the profile, for passing it to other tools.
 
 ### API key permissions

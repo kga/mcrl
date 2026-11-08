@@ -74,6 +74,31 @@ func TestResolveOrder(t *testing.T) {
 	})
 }
 
+func TestTrimLines(t *testing.T) {
+	if got := TrimLines("a\nb\n", 3); got != "a\nb" {
+		t.Errorf("short: %q", got)
+	}
+	if got := TrimLines("1\n2\n3\n4\n5\n", 3); got != "1\n2\n3\n… (2 more lines)" {
+		t.Errorf("long: %q", got)
+	}
+}
+
+func TestCommandFailureIsCommandError(t *testing.T) {
+	r := &Resolver{Getenv: env(nil), Keyring: fakeKeyring{}, RunCommand: func(context.Context, []string) ([]byte, error) {
+		return nil, errors.New("exit status 1")
+	}}
+	var ce *CommandError
+	_, err := r.Resolve(context.Background(), "work", &config.Profile{APIKeyCommand: "x"})
+	if !errors.As(err, &ce) {
+		t.Errorf("err = %v, want a CommandError", err)
+	}
+	// 実行前の失敗（引用符の閉じ忘れ）はコマンドの失敗ではない
+	_, err = r.Resolve(context.Background(), "work", &config.Profile{APIKeyCommand: `x "y`})
+	if err == nil || errors.As(err, &ce) {
+		t.Errorf("err = %v, want a plain error", err)
+	}
+}
+
 func TestSplitArgs(t *testing.T) {
 	tests := map[string][]string{
 		`op read op://x`:           {"op", "read", "op://x"},

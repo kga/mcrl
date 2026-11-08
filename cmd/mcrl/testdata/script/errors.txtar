@@ -3,7 +3,7 @@ env MACKEREL_APIKEY=good-key
 
 ! exec mcrl api /hosts/abcdefghijk
 grep '^4$' $WORK/exitcode
-stderr '^\{"error":\{"code":"not_found","message":"Host Not Found. \(HTTP 404 GET /api/v0/hosts/abcdefghijk\)","status":404\}\}$'
+stderr '^\{"error":\{"code":"not_found","message":"Host Not Found. \(HTTP 404 GET /api/v0/hosts/abcdefghijk\)","status":404,"hint":"using the API key from env:MACKEREL_APIKEY \(profile \\"default\\", http://127.0.0.1:[0-9]+\)"\}\}$'
 
 env MACKEREL_APIKEY=bad
 ! exec mcrl api /org

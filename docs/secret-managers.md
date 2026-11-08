@@ -22,10 +22,12 @@ api_key_command = "op read op://Private/Mackerel/credential"
 - The command runs **without a shell**. Arguments are split on spaces and quotes are honored, but `$VAR`, `~`, pipes and redirections are not. Wrap it in `sh -c '...'` when you need them.
 - mcrl uses the command's standard output with surrounding whitespace removed. Empty output is an error.
 - The command gets no standard input, so it cannot ask for a password on the terminal. Use the tool's desktop app integration, an agent, or a token in its environment.
-- It times out after 30 seconds. On failure, mcrl shows the command's stderr.
+- It times out after 30 seconds. On failure, mcrl shows the exit status and the first 3 lines of the command's stderr.
 - It runs **every time mcrl needs the key**: once per mcrl invocation, and once per tool call in `mcrl mcp`. For scripts that call mcrl many times, or for the MCP server, prefer the environment variable.
 
 `mcrl auth status` shows `api_key_command` as the key's source when it works.
+
+When the command fails, mcrl reports its exit status and the first 3 lines of its stderr (`… (N more lines)` marks what was cut), with a hint about quoting. Run the command by itself to see everything it prints. The usual cause is an argument that contains spaces and is not quoted: `api_key_command = "cmd 'an argument'"`. `mcrl doctor` shows the same message.
 
 ## Environment variable
 

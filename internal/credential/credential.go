@@ -41,6 +41,27 @@ const (
 // ErrNotFound means no API key was found anywhere.
 var ErrNotFound = errors.New("no API key found")
 
+// MaxStderrLines is how many lines of a failing api_key_command's stderr are
+// kept in the error message.
+const MaxStderrLines = 3
+
+// CommandError means api_key_command could not be run or exited unsuccessfully.
+// Its message keeps the exit status.
+type CommandError struct{ Err error }
+
+func (e *CommandError) Error() string { return e.Err.Error() }
+func (e *CommandError) Unwrap() error { return e.Err }
+
+// TrimLines keeps the first max lines of s and notes how many were cut.
+func TrimLines(s string, max int) string {
+	s = strings.TrimSpace(s)
+	lines := strings.Split(s, "\n")
+	if len(lines) <= max {
+		return s
+	}
+	return fmt.Sprintf("%s\n… (%d more lines)", strings.Join(lines[:max], "\n"), len(lines)-max)
+}
+
 // Keyring is the subset of the OS keychain used by mcrl. Tests swap it out.
 type Keyring interface {
 	Get(service, user string) (string, error)
@@ -119,7 +140,7 @@ func (r *Resolver) runCommand(ctx context.Context, cmdline string) (string, erro
 			out, err := cmd.Output()
 			if err != nil {
 				if msg := strings.TrimSpace(stderr.String()); msg != "" {
-					return nil, fmt.Errorf("%w: %s", err, msg)
+					return nil, fmt.Errorf("%w: %s", err, TrimLines(msg, MaxStderrLines))
 				}
 				return nil, err
 			}
@@ -128,7 +149,7 @@ func (r *Resolver) runCommand(ctx context.Context, cmdline string) (string, erro
 	}
 	out, err := run(ctx, argv)
 	if err != nil {
-		return "", err
+		return "", &CommandError{Err: err}
 	}
 	k := strings.TrimSpace(string(out))
 	if k == "" {
