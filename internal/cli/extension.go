@@ -327,7 +327,7 @@ func runExtension(f *cmdutil.Factory, root *cobra.Command, args []string) (code 
 	}
 	code, err = execExtension(f, root, m, e, args[:i], args[i+1:])
 	if err != nil {
-		PrintError(f.IO, err)
+		PrintError(f, err)
 		return ExitCode(err), true
 	}
 	return code, true

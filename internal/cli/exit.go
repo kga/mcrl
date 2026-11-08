@@ -122,7 +122,9 @@ func ExitCode(err error) int {
 }
 
 // PrintError reports err on stderr: human-readable on a TTY, one JSON line otherwise.
-func PrintError(io *cmdutil.IOStreams, err error) {
+// For not-found and authentication errors the hint also says where the API key came from.
+func PrintError(f *cmdutil.Factory, err error) {
+	io := f.IO
 	var ee *cmdutil.ExitError
 	if errors.As(err, &ee) && ee.Silent {
 		return
@@ -130,6 +132,15 @@ func PrintError(io *cmdutil.IOStreams, err error) {
 	c := classify(err)
 	if c.exit == ExitInterrupted {
 		return
+	}
+	if c.exit == ExitAuth || c.exit == ExitNotFound {
+		if k := f.KeySourceHint(); k != "" {
+			if c.hint == "" {
+				c.hint = k
+			} else {
+				c.hint += "; " + k
+			}
+		}
 	}
 	msg := err.Error()
 	if io.ErrTTY {

@@ -49,7 +49,7 @@ func Main(ctx context.Context, args []string, io *cmdutil.IOStreams, opts ...Opt
 		err = context.Canceled
 	}
 	if err != nil {
-		PrintError(io, err)
+		PrintError(f, err)
 	}
 	return ExitCode(err)
 }

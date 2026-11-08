@@ -45,6 +45,21 @@ type Factory struct {
 
 	cfg     *config.Config
 	cfgPath string
+	// conn is the last connection whose API key was resolved; it lets error
+	// hints say where the key came from without another request.
+	conn *Connection
+}
+
+// QuotingHint is shown when api_key_command fails.
+const QuotingHint = `api_key_command runs without a shell and splits arguments on spaces; quote arguments that contain spaces, e.g. "cmd 'an argument'"`
+
+// KeySourceHint describes which API key source, profile and base URL the last
+// resolved connection used. It is empty when no key was resolved.
+func (f *Factory) KeySourceHint() string {
+	if f.conn == nil || f.conn.Key.Source == credential.SourceNone {
+		return ""
+	}
+	return fmt.Sprintf("using the API key from %s (profile %q, %s)", f.conn.Key.Source, f.conn.Profile, f.conn.BaseURL)
 }
 
 // CheckJQ compiles the --jq expression, if any, so that a syntax error is
@@ -143,9 +158,14 @@ func (f *Factory) Connection(ctx context.Context) (*Connection, error) {
 		)}
 	}
 	if err != nil {
+		var ce *credential.CommandError
+		if errors.As(err, &ce) {
+			err = WithHint(err, QuotingHint)
+		}
 		return conn, &AuthError{Err: err}
 	}
 	conn.Key = key
+	f.conn = conn
 	if src == config.SourceFlag && key.Source == credential.SourceEnv {
 		f.IO.Warnf("using the API key from %s, not the one stored for profile %q", credential.EnvVar, name)
 	}
