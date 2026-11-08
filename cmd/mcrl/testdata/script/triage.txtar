@@ -165,9 +165,48 @@ grep '^2$' $WORK/exitcode
 grep '^2$' $WORK/exitcode
 ! exec mcrl triage --max-groups 0
 grep '^2$' $WORK/exitcode
+# /tsdb/latest が null を返したメトリクスだけ、アラートが開く前の 7 日間の時系列 API から最後の点を探す。
+# /tsdb/latest に出てこないホスト（hostGHOST001）には何も聞かない
+rm $WORK/requests.log
+exec mcrl triage --now @1800000000 alCONN00002 alCONN00003 alCONN00004 --jq '.groups[0].alerts[] | "\(.id) \(.host.lastMetricAt)"'
+cmp stdout want-slow.txt
+grep -count=1 'GET /api/v0/tsdb/latest\?hostId=hostSLOW0001&hostId=hostNONE0001&hostId=hostGHOST001&name=loadavg5&name=cpu.user.percentage&name=memory.used$' $WORK/requests.log
+! grep 'hostSLOW0001/metrics.*loadavg5' $WORK/requests.log
+! grep 'hostGHOST001/metrics' $WORK/requests.log
+grep -count=1 'GET /api/v0/hosts/hostSLOW0001/metrics\?from=1799394900&name=cpu.user.percentage&to=1800000000$' $WORK/requests.log
+! grep 'hostSLOW0001/metrics.*memory.used' $WORK/requests.log
+grep -count=3 'GET /api/v0/hosts/hostNONE0001/metrics' $WORK/requests.log
+exec mcrl triage --now @1800000000 alCONN00002 alCONN00003 alCONN00004 --jq '.groups[0].notes[] | select(.kind == "metrics-stopped") | .message'
+stdout -count=1 '^the host "slow-1" last sent metrics at 2027-01-15T05:13:20Z, 2h41m before the alert opened$'
+
+# 時系列 API が失敗したホストは、ホストごとに errors へ 1 件。他のホストの lastMetricAt と注記は残る。
+# 失敗したホストは lastMetricAt を持たない（null でもない）
+exec mcrl triage --now @1800000000 alCONN00002 alCONN00005 --jq '[.groups[0].errors[] | select(.source == "hosts") | .message] | length'
+stdout '^1$'
+exec mcrl triage --now @1800000000 alCONN00002 alCONN00005 --jq '.groups[0].errors[] | select(.source == "hosts") | .message'
+stdout 'last metric time of host hostFAIL0001: .*loadavg5'
+exec mcrl triage --now @1800000000 alCONN00002 alCONN00005 --jq '.groups[0].alerts[] | "\(.id) \(.host | has("lastMetricAt")) \(.host.lastMetricAt)"'
+cmp stdout want-fail.txt
+exec mcrl triage --now @1800000000 alCONN00002 alCONN00005 --jq '.groups[0].notes[] | select(.kind == "metrics-stopped") | .resource.id'
+stdout '^hostSLOW0001$'
+
+# 範囲はアラートが開く 7 日前から今まで。アラートのあとにメトリクスが届いていたら、lastMetricAt はその時刻で、metrics-stopped は付かない
+exec mcrl triage --now @1800000000 alCONN00006 --jq '.groups[0].alerts[0].host.lastMetricAt'
+stdout '^1799999800$'
+exec mcrl triage --now @1800000000 alCONN00006 --jq '[.groups[0].notes[].kind] | join(",")'
+stdout '^host-not-working$'
+grep -count=2 'GET /api/v0/hosts/hostLATE0001/metrics\?from=1799394900&name=loadavg5&to=1800000000$' $WORK/requests.log
+
 ! exec mcrl triage --role web
 grep '^2$' $WORK/exitcode
 
+-- want-fail.txt --
+alCONN00002 true 1799990000
+alCONN00005 false null
+-- want-slow.txt --
+alCONN00002 1799990000
+alCONN00003 null
+alCONN00004 null
 -- want-groups.txt --
 CRITICAL monCONN0001 1 true alCONN00001
 CRITICAL monCPU00001 1 true alCPU000001

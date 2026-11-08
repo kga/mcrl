@@ -40,7 +40,7 @@ Every endpoint in the index of the [Mackerel API documents](https://mackerel.io/
 | Endpoint | API key permission | Commands |
 |---|---|---|
 | [`POST /api/v0/tsdb`](https://mackerel.io/api-docs/entry/host-metrics#post) | Read, Write | [`mcrl metric post`](metric.md#mcrl-metric-post) |
-| [`GET /api/v0/hosts/<hostId>/metrics`](https://mackerel.io/api-docs/entry/host-metrics#get) | Read | [`mcrl metric get`](metric.md#mcrl-metric-get), [`mcrl triage`](triage.md#mcrl-triage) |
+| [`GET /api/v0/hosts/<hostId>/metrics`](https://mackerel.io/api-docs/entry/host-metrics#get) | Read | [`mcrl audit`](audit.md#mcrl-audit), [`mcrl metric get`](metric.md#mcrl-metric-get), [`mcrl triage`](triage.md#mcrl-triage) |
 | [`GET /api/v0/tsdb/latest`](https://mackerel.io/api-docs/entry/host-metrics#get-latest) | Read | [`mcrl audit`](audit.md#mcrl-audit), [`mcrl metric latest`](metric.md#mcrl-metric-latest), [`mcrl triage`](triage.md#mcrl-triage) |
 | [`POST /api/v0/graph-defs/create`](https://mackerel.io/api-docs/entry/host-metrics#post-graphdef) | Read, Write | [`mcrl metric graph-def create`](metric.md#mcrl-metric-graph-def-create) |
 | [`DELETE /api/v0/graph-defs`](https://mackerel.io/api-docs/entry/host-metrics#delete-graphdef) | Read, Write | [`mcrl metric graph-def delete`](metric.md#mcrl-metric-graph-def-delete) |

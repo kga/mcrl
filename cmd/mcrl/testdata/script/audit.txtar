@@ -8,11 +8,38 @@ grep -count=1 'GET /api/v0/monitors$' $WORK/requests.log
 grep -count=1 'GET /api/v0/downtimes$' $WORK/requests.log
 grep -count=1 'GET /api/v0/services$' $WORK/requests.log
 grep -count=1 'GET /api/v0/notification-groups$' $WORK/requests.log
-grep -count=1 'GET /api/v0/tsdb/latest\?hostId=hostWEB0001&hostId=hostSTALE01&hostId=hostOFF0001&name=loadavg5&name=cpu.user.percentage&name=memory.used$' $WORK/requests.log
+grep -count=1 'GET /api/v0/tsdb/latest\?hostId=hostWEB0001&hostId=hostSTALE01&hostId=hostOFF0001&hostId=hostSLOW0001&hostId=hostGONE0001&hostId=hostQUIET001&name=loadavg5&name=cpu.user.percentage&name=memory.used$' $WORK/requests.log
+# /tsdb/latest が null を返したメトリクスだけ、時系列 API で最後の点を探す。
+# 点のあるメトリクスが見つかったら止める（hostSLOW0001 は loadavg5 が /tsdb/latest になく、cpu.user.percentage にある）
+! grep 'hostSLOW0001/metrics.*loadavg5' $WORK/requests.log
+grep -count=1 'GET /api/v0/hosts/hostSLOW0001/metrics\?from=1797408000&name=cpu.user.percentage&to=1800000000$' $WORK/requests.log
+! grep 'hostSLOW0001/metrics.*memory.used' $WORK/requests.log
+grep -count=3 'GET /api/v0/hosts/hostQUIET001/metrics' $WORK/requests.log
+# /tsdb/latest に出てこないホストには何も聞かない
+! grep 'hostOFF0001/metrics' $WORK/requests.log
+! grep 'hostWEB0001/metrics' $WORK/requests.log
 # サービスメトリクスはホストのないサービスだけ確かめる
 grep 'GET /api/v0/services/batch/metric-names' $WORK/requests.log
 ! grep 'GET /api/v0/services/web/metric-names' $WORK/requests.log
 ! grep 'POST|PUT|DELETE' $WORK/requests.log
+
+# 最後の点が範囲内にあるホストは指摘されない。点がないホストは、確かめた範囲を示して指摘される。
+# 何も確かめていないホスト（hostOFF0001）は、そう書く
+exec mcrl audit --now @1800000000 --check host-inactive --jq '.[] | [.resource.id, .message] | join(" | ")'
+cmp stdout want-inactive.txt
+exec mcrl audit --now @1800000000 --check host-inactive --jq '.[0].details | keys | join(",")'
+stdout '^createdAt,status$'
+# 動いているホストで、null を返したのに範囲内に点がないもの（hostGONE0001）は host-stale-metrics が指摘する。
+# 何も確かめていない動いているホスト（hostWEB0001 などは値がある）は指摘されない
+exec mcrl audit --now @1800000000 --check host-stale-metrics --jq '.[] | [.resource.id, .message] | join(" | ")'
+cmp stdout want-stale.txt
+exec mcrl audit --now @1800000000 --check host-stale-metrics --jq '.[1].details | keys | join(",")'
+stdout '^status$'
+# --older-than が短く、最後の点が範囲の外なら、確かめた範囲が分かる書き方になる
+exec mcrl audit --now @1800000000 --check host-inactive --older-than 12h --jq '.[] | [.resource.id, .message] | join(" | ")'
+cmp stdout want-inactive-12h.txt
+exec mcrl audit --now @1800000000 --check host-inactive --older-than 2d --jq '[.[].resource.id] | join(",")'
+stdout '^hostOFF0001,hostQUIET001$'
 
 # 指摘の形
 exec mcrl audit --now @1800000000 --check alert-on-retired-host -o jsonl
@@ -27,8 +54,9 @@ cmp stdout want-some.txt
 # --older-than を短くすると、30 日では残っていたホストも出る
 exec mcrl audit --now @1800000000 --check host-stale-metrics --older-than 1m --jq '.[].resource.id'
 stdout '^hostWEB0001$'
-exec mcrl audit --now @1800000000 --check host-stale-metrics --older-than 31d --jq length
-stdout '^0$'
+# （hostGONE0001 は点が一つもないので、範囲を広げても残る）
+exec mcrl audit --now @1800000000 --check host-stale-metrics --older-than 31d --jq '[.[].resource.id] | join(",")'
+stdout '^hostGONE0001$'
 
 # --fail-on: 指摘が重要度以上なら終了コード 8。出力はそのまま出る
 ! exec mcrl audit --now @1800000000 --check user-without-mfa --fail-on warning --jq '.[].resource.name'
@@ -56,7 +84,9 @@ ended-downtime info downtime dtENDED0001
 ended-downtime info downtime dtENDSNOW01
 dangling-scope warning monitor monMUTED001
 host-inactive info host hostOFF0001
+host-inactive info host hostQUIET001
 host-stale-metrics warning host hostSTALE01
+host-stale-metrics warning host hostGONE0001
 host-without-role info host hostOFF0001
 alert-on-retired-host warning alert alRETIRED01
 unused-service info service batch
@@ -65,6 +95,16 @@ unused-channel info channel chUNUSED001
 empty-notification-group warning notification-group ngEMPTY0001
 user-without-mfa warning user userNOMFA01
 expired-invitation info invitation late@example.com
+-- want-stale.txt --
+hostSTALE01 | the host is working but its agent metrics stopped at 2026-12-16T08:00:00Z
+hostGONE0001 | the host is working but its agent has sent no metric in the last 30d
+-- want-inactive.txt --
+hostOFF0001 | the host is poweroff and none of loadavg5, cpu.user.percentage, memory.used is known for it (registered 2023-11-14T22:13:20Z)
+hostQUIET001 | the host is standby and has sent no metric in the last 30d
+-- want-inactive-12h.txt --
+hostOFF0001 | the host is poweroff and none of loadavg5, cpu.user.percentage, memory.used is known for it (registered 2023-11-14T22:13:20Z)
+hostSLOW0001 | the host is standby and has sent no metric in the last 12h
+hostQUIET001 | the host is standby and has sent no metric in the last 12h
 -- want-some.txt --
 monMUTED001
 userNOMFA01

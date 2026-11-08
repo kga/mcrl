@@ -211,6 +211,11 @@ func newFakeAPI(logPath string) http.Handler {
 			if serveAuditFixture(w, r) {
 				return
 			}
+		case "audit-fault-key":
+			// 時系列 API が失敗するホストのあるテスト用の組織（audit_fake_test.go）
+			if serveAuditFaultFixture(w, r) {
+				return
+			}
 		case "triage-key":
 			// mcrl triage のテスト用の組織（triage_fake_test.go）
 			if serveTriageFixture(w, r, reqBody) {

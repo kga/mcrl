@@ -6,14 +6,18 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"slices"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/kga/mcrl/internal/cli/cmdutil"
+	"github.com/kga/mcrl/internal/httpx"
 	"github.com/kga/mcrl/internal/mackerel"
 	"github.com/kga/mcrl/internal/timeexpr"
 )
@@ -70,6 +74,9 @@ var auditChecks = []auditCheck{
 // a host last sent metrics. mackerel-agent sends them on Linux and Windows.
 var auditProbeMetrics = []string{"loadavg5", "cpu.user.percentage", "memory.used"}
 
+// auditConcurrency is how many time-series lookups of audit run at once.
+const auditConcurrency = 4
+
 // auditLatestChunk is the number of hosts per GET /tsdb/latest request.
 const auditLatestChunk = 100
 
@@ -80,9 +87,11 @@ type auditor struct {
 	now       time.Time
 	olderThan time.Duration
 
-	lists   map[string][]json.RawMessage // path -> items
-	latest  map[string]int64             // host ID -> newest probe metric time
-	retired map[string]*auditHost        // host ID -> host fetched by ID (nil: gone)
+	lists    map[string][]json.RawMessage // path -> items
+	latest   map[string]int64             // host ID -> newest probe metric time
+	searched map[string]bool              // host IDs whose time-series API was read
+	failed   map[string]error             // host ID -> why its time-series API could not be read
+	retired  map[string]*auditHost        // host ID -> host fetched by ID (nil: gone)
 }
 
 func newAuditor(ctx context.Context, c *mackerel.Client, now time.Time, olderThan time.Duration) *auditor {
@@ -168,19 +177,83 @@ func (a *auditor) latestMetrics() (map[string]int64, error) {
 	for i, h := range hosts {
 		ids[i] = h.ID
 	}
-	latest, err := latestMetricTimes(a.ctx, a.c, ids)
+	from, to := a.cutoff().Unix(), a.now.Unix()
+	latest, searched, failed, err := latestMetricTimes(a.ctx, a.c, ids, func(string) (int64, int64) { return from, to }, auditConcurrency)
 	if err != nil {
 		return nil, err
 	}
-	a.latest = latest
+	a.latest, a.searched, a.failed = latest, searched, failed
 	return latest, nil
 }
 
 // latestMetricTimes returns when each host last sent any of
-// auditProbeMetrics (GET /tsdb/latest). Hosts that sent none are missing
-// from the map. mcrl audit and mcrl triage judge stopped hosts with it.
-func latestMetricTimes(ctx context.Context, c *mackerel.Client, hostIDs []string) (map[string]int64, error) {
+// auditProbeMetrics. Hosts with none are missing from the map. mcrl audit
+// and mcrl triage judge stopped hosts with it.
+//
+// GET /tsdb/latest is the cheap first step. For a host whose last points,
+// still returned by the time-series API, were about 20 hours old, it
+// returned the probe metric names with null values. So for a host that has
+// a probe metric with a null value there and no value at all, the
+// time-series API is read over the range rangeOf gives, for the null probes
+// only, in auditProbeMetrics order, and the time of the last point of the
+// first that has points is used. searched has the hosts for which that
+// was done, at most concurrency at a time. A lookup that fails does not
+// discard the others: the host is in failed and has no time in latest, so
+// that nothing is claimed about it. Over a day or more the API returns
+// aggregated points, so that time is approximate.
+//
+// In the responses seen so far, /tsdb/latest left out a metric name that the
+// host had never sent (a host registered through the API only came back as
+// {}, a Windows host had no loadavg5 key) and returned null for one it had
+// sent but not recently. This is not documented API behaviour; it is used
+// only to avoid requests for hosts that never send these metrics. A host
+// with no null probe gets no extra request.
+func latestMetricTimes(ctx context.Context, c *mackerel.Client, hostIDs []string, rangeOf func(hostID string) (from, to int64), concurrency int) (latest map[string]int64, searched map[string]bool, failed map[string]error, err error) {
+	latest, nulls, err := latestFromTSDB(ctx, c, hostIDs)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	searched = map[string]bool{}
+	failed = map[string]error{}
+	var mu sync.Mutex
+	var targets []string
+	for _, id := range hostIDs {
+		if _, ok := latest[id]; !ok && len(nulls[id]) > 0 && !searched[id] {
+			searched[id] = true
+			targets = append(targets, id)
+		}
+	}
+	// The caller says how many lookups may run at once: triage already runs
+	// this inside one slot of its own runner, so it asks for one at a time.
+	sem := make(chan struct{}, max(concurrency, 1))
+	var wg sync.WaitGroup
+	for _, id := range targets {
+		names := nulls[id]
+		sem <- struct{}{} // targets start in order, so concurrency 1 is sequential
+		wg.Go(func() {
+			defer func() { <-sem }()
+			from, to := rangeOf(id)
+			t, ok, err := lastPointTime(ctx, c, id, names, from, to)
+			mu.Lock()
+			defer mu.Unlock()
+			switch {
+			case err != nil:
+				failed[id] = err
+			case ok:
+				latest[id] = t
+			}
+		})
+	}
+	wg.Wait()
+	return latest, searched, failed, nil
+}
+
+// latestFromTSDB reads GET /tsdb/latest. It returns the newest time of the
+// probe metrics that have a value, and for each host the probe metrics that
+// came back with a null value, in auditProbeMetrics order.
+func latestFromTSDB(ctx context.Context, c *mackerel.Client, hostIDs []string) (map[string]int64, map[string][]string, error) {
 	latest := map[string]int64{}
+	nulls := map[string][]string{}
 	for chunk := range slices.Chunk(hostIDs, auditLatestChunk) {
 		q := url.Values{"name": auditProbeMetrics}
 		for _, id := range chunk {
@@ -188,7 +261,7 @@ func latestMetricTimes(ctx context.Context, c *mackerel.Client, hostIDs []string
 		}
 		b, err := c.Get(ctx, "/tsdb/latest", q)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		var resp struct {
 			TSDBLatest map[string]map[string]*struct {
@@ -196,17 +269,88 @@ func latestMetricTimes(ctx context.Context, c *mackerel.Client, hostIDs []string
 			} `json:"tsdbLatest"`
 		}
 		if err := json.Unmarshal(b, &resp); err != nil {
-			return nil, fmt.Errorf("GET /tsdb/latest: %w", err)
+			return nil, nil, fmt.Errorf("GET /tsdb/latest: %w", err)
 		}
 		for id, metrics := range resp.TSDBLatest {
-			for _, m := range metrics {
-				if m != nil && m.Time > latest[id] {
-					latest[id] = m.Time
+			for _, name := range auditProbeMetrics {
+				m, present := metrics[name]
+				switch {
+				case m != nil:
+					latest[id] = max(latest[id], m.Time)
+				case present:
+					nulls[id] = append(nulls[id], name)
 				}
 			}
 		}
 	}
-	return latest, nil
+	return latest, nulls, nil
+}
+
+// lastPointTime returns the time of the last point of the first of names
+// that has points in [from, to] (GET /hosts/<id>/metrics). A metric the host
+// does not have (404) is skipped.
+func lastPointTime(ctx context.Context, c *mackerel.Client, hostID string, names []string, from, to int64) (int64, bool, error) {
+	q := url.Values{"from": {strconv.FormatInt(from, 10)}, "to": {strconv.FormatInt(to, 10)}}
+	for _, name := range names {
+		q.Set("name", name)
+		pts, err := c.List(ctx, "/hosts/"+url.PathEscape(hostID)+"/metrics", "metrics", q)
+		// Only 404 ("metric not found") says the host does not have the
+		// metric. A 400 is a bad request, not an absent metric.
+		var ae *httpx.APIError
+		if errors.As(err, &ae) && ae.StatusCode == http.StatusNotFound {
+			continue
+		}
+		if err != nil {
+			return 0, false, fmt.Errorf("host %s: %s: %w", hostID, name, err)
+		}
+		var last int64
+		found := false
+		for _, raw := range pts {
+			var p struct {
+				Time int64 `json:"time"`
+			}
+			if json.Unmarshal(raw, &p) == nil && (!found || p.Time > last) {
+				last, found = p.Time, true
+			}
+		}
+		if found {
+			return last, true, nil
+		}
+	}
+	return 0, false, nil
+}
+
+// formatOlderThan writes a duration the way --older-than takes it (30d, 12h).
+func formatOlderThan(d time.Duration) string {
+	switch {
+	case d%(24*time.Hour) == 0:
+		return fmt.Sprintf("%dd", d/(24*time.Hour))
+	case d%time.Hour == 0:
+		return fmt.Sprintf("%dh", d/time.Hour)
+	case d%time.Minute == 0:
+		return fmt.Sprintf("%dm", d/time.Minute)
+	}
+	return d.String()
+}
+
+// lookupError describes the hosts whose time-series API could not be read.
+// They are left out of host-inactive and host-stale-metrics, so no finding
+// says they sent no metric. nil when every lookup worked.
+func (a *auditor) lookupError() error {
+	if len(a.failed) == 0 {
+		return nil
+	}
+	ids := make([]string, 0, len(a.failed))
+	for id := range a.failed {
+		ids = append(ids, id)
+	}
+	slices.Sort(ids)
+	var b strings.Builder
+	fmt.Fprintf(&b, "the last metric time of %d host(s) could not be read, so they were not judged by host-inactive and host-stale-metrics", len(ids))
+	for _, id := range ids {
+		fmt.Fprintf(&b, "\n  %s: %v", id, a.failed[id])
+	}
+	return errors.New(b.String())
 }
 
 func (a *auditor) cutoff() time.Time { return a.now.Add(-a.olderThan) }
@@ -413,12 +557,12 @@ func (a *auditor) inactiveHosts() ([]auditFinding, error) {
 	}
 	var out []auditFinding
 	for _, h := range hosts {
-		if h.Status == "working" {
+		if h.Status == "working" || a.failed[h.ID] != nil {
 			continue
 		}
 		last, ok := latest[h.ID]
 		details := map[string]any{"status": h.Status, "createdAt": h.CreatedAt}
-		since := h.CreatedAt
+		since := h.CreatedAt // a host registered within --older-than is not judged
 		if ok {
 			since = last
 			details["lastMetricAt"] = last
@@ -427,8 +571,14 @@ func (a *auditor) inactiveHosts() ([]auditFinding, error) {
 			continue
 		}
 		msg := fmt.Sprintf("the host is %s and has sent no metric since %s", h.Status, epochString(since))
-		if !ok {
-			msg = fmt.Sprintf("the host is %s and has sent no metric (registered %s)", h.Status, epochString(since))
+		switch {
+		case ok:
+		case a.searched[h.ID]:
+			msg = fmt.Sprintf("the host is %s and has sent no metric in the last %s", h.Status, formatOlderThan(a.olderThan))
+		default:
+			// nothing was checked: no probe metric is known for the host
+			msg = fmt.Sprintf("the host is %s and none of %s is known for it (registered %s)",
+				h.Status, strings.Join(auditProbeMetrics, ", "), epochString(h.CreatedAt))
 		}
 		out = append(out, auditFinding{Resource: auditResource{"host", h.ID, h.Name}, Message: msg, Details: details})
 	}
@@ -447,7 +597,22 @@ func (a *auditor) staleMetricHosts() ([]auditFinding, error) {
 	var out []auditFinding
 	for _, h := range hosts {
 		last, ok := latest[h.ID]
-		if h.Status != "working" || !ok || !a.olderThanCutoff(last) {
+		if h.Status != "working" || a.failed[h.ID] != nil {
+			continue
+		}
+		if !ok {
+			// /tsdb/latest returned its probes as null (it has sent them
+			// before) and the time-series API has no point in the range
+			if a.searched[h.ID] {
+				out = append(out, auditFinding{
+					Resource: auditResource{"host", h.ID, h.Name},
+					Message:  fmt.Sprintf("the host is working but its agent has sent no metric in the last %s", formatOlderThan(a.olderThan)),
+					Details:  map[string]any{"status": h.Status},
+				})
+			}
+			continue
+		}
+		if !a.olderThanCutoff(last) {
 			continue
 		}
 		out = append(out, auditFinding{
@@ -823,11 +988,22 @@ and cron).
 Checks:
 `+list.String()+`
 Hosts are judged by the newest of `+strings.Join(auditProbeMetrics, ", ")+`
-(GET /tsdb/latest). For hosts that have none of them, such as hosts
-registered through the API only, host-stale-metrics does not apply and
-host-inactive uses the registration time instead.`, "Read",
+(GET /tsdb/latest). For a host that has some of them there with a null
+value and none with a value, the time-series API (GET /hosts/<id>/metrics)
+is read over the last --older-than for those metrics, one at a time in that
+order until one has points, and the time of the last point is used; over a
+day or more the API returns aggregated points, so that time is approximate.
+Such a host with no point in that range is reported as having sent no
+metric in the last --older-than: by host-inactive if it is not working, by
+host-stale-metrics if it is. A metric that /tsdb/latest
+leaves out is not looked up: in the responses seen so far, that is a metric
+the host never sent. For a host with none of them, such as a host
+registered through the API only, nothing is checked: host-stale-metrics
+skips it if it is working, and host-inactive says that none of the metrics is known
+and gives the registration time (a host registered within --older-than is
+not reported).`, "Read",
 			"GET /api/v0/monitors", "GET /api/v0/downtimes", "GET /api/v0/services", "GET /api/v0/hosts",
-			"GET /api/v0/tsdb/latest", "GET /api/v0/alerts", "GET /api/v0/hosts/<id>",
+			"GET /api/v0/tsdb/latest", "GET /api/v0/hosts/<id>/metrics", "GET /api/v0/alerts", "GET /api/v0/hosts/<id>",
 			"GET /api/v0/services/<name>/metric-names", "GET /api/v0/channels", "GET /api/v0/notification-groups",
 			"GET /api/v0/users", "GET /api/v0/invitations"),
 		Example: `  mcrl audit
@@ -857,7 +1033,8 @@ host-inactive uses the registration time instead.`, "Read",
 			if err != nil {
 				return err
 			}
-			findings, err := newAuditor(cmd.Context(), c, now, older).run(checks)
+			aud := newAuditor(cmd.Context(), c, now, older)
+			findings, err := aud.run(checks)
 			if err != nil {
 				return err
 			}
@@ -868,6 +1045,9 @@ host-inactive uses the registration time instead.`, "Read",
 				}
 			}
 			if err := printItems(f, items); err != nil {
+				return err
+			}
+			if err := aud.lookupError(); err != nil {
 				return err
 			}
 			if failOn != "" {

@@ -40,6 +40,12 @@ const (
 	// triageConcurrency is how many requests run at once. Logs and traces
 	// are further limited to 1 request/second by internal/httpx.
 	triageConcurrency = 4
+
+	// triageLastMetricLookback is how far before a connectivity alert opened
+	// the time-series API is read, up to now, for the last metric of its
+	// host, when GET /tsdb/latest has null values for the host.
+	triageLastMetricLookback = 7 * 24 * time.Hour
+
 	// triageMaxLogBody is the length (in bytes) a log body is cut to.
 	triageMaxLogBody = 2000
 	// triageMaxMetricMatches is how many metrics a wildcard (filesystem.*.used)
@@ -628,8 +634,24 @@ func (t *triager) fetchContext(groups []*triageGroup) []*triageOtelOut {
 	}
 	if len(probeIDs) > 0 {
 		r.Go(func() {
-			latest, err := latestMetricTimes(t.ctx, t.c, probeIDs)
+			// 範囲は、そのホストの最も早い疎通監視のアラートが開く 7 日前から今まで。
+			// アラートのあとに送られたメトリクスも拾い、注記は最後の点がアラートより前のときだけ出す
+			opened := map[string]int64{}
 			for _, g := range detailed {
+				for _, a := range g.alerts {
+					if a.Type == "connectivity" {
+						if o, ok := opened[a.HostID]; !ok || a.OpenedAt < o {
+							opened[a.HostID] = a.OpenedAt
+						}
+					}
+				}
+			}
+			now := t.opts.now.Unix()
+			latest, _, failed, err := latestMetricTimes(t.ctx, t.c, probeIDs, func(id string) (int64, int64) {
+				return opened[id] - int64(triageLastMetricLookback/time.Second), now
+			}, 1) // this already holds one slot of r: look up one host at a time
+			for _, g := range detailed {
+				reported := map[string]bool{}
 				for _, a := range g.alerts {
 					if a.Type != "connectivity" || a.HostID == "" {
 						continue
@@ -637,6 +659,14 @@ func (t *triager) fetchContext(groups []*triageGroup) []*triageOtelOut {
 					if err != nil {
 						t.addError(g, "hosts", fmt.Errorf("last metric time: %w", err))
 						break
+					}
+					if herr := failed[a.HostID]; herr != nil {
+						// nothing is said about the host; the others keep their time
+						if !reported[a.HostID] {
+							reported[a.HostID] = true
+							t.addError(g, "hosts", fmt.Errorf("last metric time of host %s: %w", a.HostID, herr))
+						}
+						continue
 					}
 					a.probed = true
 					if v, ok := latest[a.HostID]; ok {
@@ -1467,7 +1497,16 @@ Notes:
   host-retired            the alert's host is retired or deleted
   host-not-working        the host is standby, maintenance or poweroff
   metrics-stopped         connectivity alert whose host last sent metrics
-                          before the alert opened
+                          before the alert opened. The time comes from
+                          GET /tsdb/latest; for a host that has these metrics
+                          there only with null values, from the last point
+                          of loadavg5, cpu.user.percentage or memory.used
+                          (the first that has points) from 7 days before
+                          the alert opened until now. Over a day or more the
+                          points are aggregated, so the time is approximate.
+                          A last point after the alert opened gives no note.
+                          With no point, or for a host /tsdb/latest knows
+                          none of them for, there is no note.
   status-changed          an alert's latest status change is outside the
                           context range
   recent-annotation       a graph annotation in the range
