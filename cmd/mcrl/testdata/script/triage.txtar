@@ -47,6 +47,38 @@ exec mcrl triage --now @1800000000 --jq '.groups[] | .monitor.id as $id | .error
 cmp stdout want-errors.txt
 grep '^0$' $WORK/exitcode
 
+# value は直近の状態変化の時点の値。context は最初の openedAt の前後なので、
+# 範囲外で変わったアラートには statusChangedAt と status-changed の注記、その前後を読む next が付く
+exec mcrl triage --now @1800000000 --jq '.groups[2].alerts[] | "\(.id) \(.status) \(.openedAt) \(.statusChangedAt)"'
+cmp stdout want-changed.txt
+exec mcrl triage --now @1800000000 --jq '.groups[2].notes[] | select(.kind == "status-changed") | "\(.message) \(.resource.type) \(.resource.id)"'
+stdout '^the alert "alDISK00002" changed to WARNING at 2027-01-15T07:59:10Z, 7m after it opened, outside the context range alert alDISK00002$'
+exec mcrl triage --now @1800000000 --jq '.groups[2].next[] | select(contains("--until") or contains("--since 15m"))'
+cmp stdout want-changed-next.txt
+# 経過が読めないアラートは statusChangedAt を持たず、注記も出さない（context は変わらない）
+exec mcrl triage --now @1800000000 --jq '.groups[4].alerts[0] | has("statusChangedAt")'
+stdout '^false$'
+# 詳細グループのアラートごとに経過を 1 回読む。詳細でないグループは読まない
+rm $WORK/requests.log
+exec mcrl triage --now @1800000000
+grep -count=1 'GET /api/v0/alerts/alDISK00002/logs\?limit=100$' $WORK/requests.log
+grep -count=1 'GET /api/v0/alerts/alCONN00001/logs\?limit=100$' $WORK/requests.log
+! grep 'alSWAP00001/logs' $WORK/requests.log
+# 経過を読むのは --max-hosts 件のアラートだけ（新しい順）。残りは statusChangedAt も注記も持たない
+rm $WORK/requests.log
+exec mcrl triage --now @1800000000 --max-hosts 2 --jq '.groups[2] | "\([.alerts[] | has("statusChangedAt")] | map(tostring) | join(",")) \([.notes[].kind] | index("status-changed") != null)"'
+stdout '^true,true,false true$'
+grep -count=1 'alDISK00002/logs' $WORK/requests.log
+grep -count=1 'alDISK00001/logs' $WORK/requests.log
+! grep 'alDISK00003/logs' $WORK/requests.log
+rm $WORK/requests.log
+exec mcrl triage --now @1800000000 --max-hosts 1 --jq '.groups[2] | "\([.alerts[] | has("statusChangedAt")] | map(tostring) | join(","))"'
+stdout '^true,false,false$'
+! grep 'alDISK00001/logs|alDISK00003/logs' $WORK/requests.log
+# アラート ID を指定しないときは logs を出力しない
+exec mcrl triage --now @1800000000 --jq '[.groups[].alerts[] | has("logs")] | any'
+stdout '^false$'
+
 # 他の監視・アノテーション・ダウンタイム
 exec mcrl triage --now @1800000000 --jq '.groups[2].context.otherMonitors[] | "\(.hostId) \(.name) \(.status)"'
 cmp stdout want-others.txt
@@ -135,7 +167,7 @@ WARNING monSWAP0001 1 false alSWAP00001
 -- want-notes.txt --
 monCONN0001 [host-not-working,metrics-stopped]
 monCPU00001 [monitor-muted,in-downtime,recent-annotation,other-monitors-failing]
-monDISK0001 [in-downtime,recent-annotation,many-hosts,other-monitors-failing,other-monitors-failing]
+monDISK0001 [in-downtime,status-changed,recent-annotation,many-hosts,other-monitors-failing,other-monitors-failing]
 monCTR00001 [host-retired]
 monSVC00001 [in-downtime,recent-annotation]
 monSWAP0001 []
@@ -159,6 +191,7 @@ swap% hostWEB0002 memory.swap_total
 -- want-errors.txt --
 monDISK0001 monitors: host hostWEB0003: Forbidden (HTTP 403 GET /api/v0/hosts/hostWEB0003/monitored-statuses)
 monCTR00001 metrics: container-cpu% is a rate monitor whose source metrics are unknown, so no metric is shown; the alert's value has the rate
+monSVC00001 alertLogs: alert alSVC000001: Forbidden (HTTP 403 GET /api/v0/alerts/alSVC000001/logs)
 -- want-others.txt --
 hostWEB0002 swap WARNING
 hostWEB0001 cpu high CRITICAL
@@ -167,8 +200,25 @@ mcrl alert logs alDISK00002
 mcrl metric get --host id:hostWEB0002 --name filesystem.root.size --since @1799987300
 mcrl metric get --host id:hostWEB0002 --name filesystem.root.used --since @1799987300
 mcrl metric get --host id:hostWEB0002 --name filesystem.vdb.size --since @1799987300
+mcrl metric get --host id:hostWEB0002 --name filesystem.root.size --since @1799999050 --until @1800000000
+mcrl metric get --host id:hostWEB0002 --name filesystem.root.used --since @1799999050 --until @1800000000
+mcrl metric get --host id:hostWEB0002 --name filesystem.vdb.size --since @1799999050 --until @1800000000
+mcrl metric get --host id:hostWEB0002 --name filesystem.root.size --since 15m
+mcrl metric get --host id:hostWEB0002 --name filesystem.root.used --since 15m
+mcrl metric get --host id:hostWEB0002 --name filesystem.vdb.size --since 15m
 mcrl host monitor-status id:hostWEB0002 --expand
 mcrl annotation list --service web --since @1799911700
 -- want-otel.txt --
 checkout 1799998100-1799999900 logs=2 traces=1 errors=
 denied 1799998100-1799999900 logs=- traces=- errors=logs,traces
+-- want-changed.txt --
+alDISK00002 WARNING 1799999500 1799999950
+alDISK00001 CRITICAL 1799999400 1799999400
+alDISK00003 CRITICAL 1799999000 1799999000
+-- want-changed-next.txt --
+mcrl metric get --host id:hostWEB0002 --name filesystem.root.size --since @1799999050 --until @1800000000
+mcrl metric get --host id:hostWEB0002 --name filesystem.root.used --since @1799999050 --until @1800000000
+mcrl metric get --host id:hostWEB0002 --name filesystem.vdb.size --since @1799999050 --until @1800000000
+mcrl metric get --host id:hostWEB0002 --name filesystem.root.size --since 15m
+mcrl metric get --host id:hostWEB0002 --name filesystem.root.used --since 15m
+mcrl metric get --host id:hostWEB0002 --name filesystem.vdb.size --since 15m

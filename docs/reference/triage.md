@@ -24,7 +24,8 @@ is the group's earliest alert, for up to --max-hosts hosts per group (the
 newest alerts first).
 
 Give alert IDs ("-" reads them from stdin) to look at those alerts only,
-closed ones included; each alert then also has its status history ("logs").
+closed ones included; each alert then also has its whole status history
+("logs", up to 50 changes).
 
 Output:
   {"generatedAt", "summary": {"alerts", "open", "critical", "warning",
@@ -34,7 +35,8 @@ Each group:
   "monitor"   the monitor as the API returns it
   "alerts"    the alerts as the API returns them, newest first, with
               "host": {"id", "name", "status", "roles", "isRetired",
-              "cpuCount", "lastMetricAt" (connectivity alerts)}
+              "cpuCount", "lastMetricAt" (connectivity alerts)}, and
+              "statusChangedAt" (alerts whose hosts get context)
   "context"   {"range": {"from", "to"}, "metrics": [{"hostId" or "service",
               "name", "points"}], "otherMonitors": [{"hostId", "monitorId",
               "name", "type", "status"}], "annotations", "downtimes"}
@@ -42,6 +44,19 @@ Each group:
   "next"      mcrl commands to look further, ready to run
   "errors"    [{"source", "message"}] for what could not be read
 A source turned off with --skip or --only is left out of "context".
+
+An alert's "value" comes from the API as is. For an open alert it can
+change over time, so it may be newer than the metrics in "context", which
+stay around the earliest "openedAt". "statusChangedAt" (epoch seconds) is the
+time of the alert's latest status change, read from the newest entry of its
+status history; for an alert that never changed status it equals "openedAt".
+The note status-changed is added when that time is outside the context
+range; "next" then has commands that read the metrics around the change and
+over the last --window.
+The history is read only for the alerts whose hosts get context (up to
+--max-hosts per group, newest first; for alerts without a host, the newest
+--max-hosts of the group), or for all alerts when alert IDs are given. The
+other alerts have no "statusChangedAt" and no such note.
 
 Metrics: host monitors read the monitored metric of each host, service
 monitors the service metric. Rate monitors are not computed; their source
@@ -62,6 +77,8 @@ Notes:
   host-not-working        the host is standby, maintenance or poweroff
   metrics-stopped         connectivity alert whose host last sent metrics
                           before the alert opened
+  status-changed          an alert's latest status change is outside the
+                          context range
   recent-annotation       a graph annotation in the range
   many-hosts              two or more hosts alert on the monitor
   other-monitors-failing  other monitors are not OK on the host
@@ -76,7 +93,7 @@ keep --window at 15m or less to get them.
 Requests run 4 at a time. When a request fails, the rest is still returned
 with the failure in "errors", and the exit code is 0.
 
-API: GET /api/v0/alerts, GET /api/v0/alerts/<id> (alert IDs), GET /api/v0/alerts/<id>/logs (alert IDs), GET /api/v0/monitors, GET /api/v0/hosts, GET /api/v0/hosts/<id>, GET /api/v0/tsdb/latest, GET /api/v0/hosts/<id>/monitored-statuses, GET /api/v0/hosts/<id>/metrics, GET /api/v0/hosts/<id>/metric-names, GET /api/v0/services/<name>/metrics, GET /api/v0/services/<name>/metric-names, GET /api/v0/graph-annotations, GET /api/v0/downtimes, POST /api/v0/logs (--otel-service), POST /api/v0/traces (--otel-service)
+API: GET /api/v0/alerts, GET /api/v0/alerts/<id> (alert IDs), GET /api/v0/alerts/<id>/logs, GET /api/v0/monitors, GET /api/v0/hosts, GET /api/v0/hosts/<id>, GET /api/v0/tsdb/latest, GET /api/v0/hosts/<id>/monitored-statuses, GET /api/v0/hosts/<id>/metrics, GET /api/v0/hosts/<id>/metric-names, GET /api/v0/services/<name>/metrics, GET /api/v0/services/<name>/metric-names, GET /api/v0/graph-annotations, GET /api/v0/downtimes, POST /api/v0/logs (--otel-service), POST /api/v0/traces (--otel-service)
 API key permission: Read
 
 Examples:
