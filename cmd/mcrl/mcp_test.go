@@ -137,6 +137,15 @@ func TestMCPReadOnly(t *testing.T) {
 			if !strings.Contains(tool.Description, "API key permission: Read") || !strings.Contains(tool.Description, "CLI: mcrl host list") {
 				t.Errorf("host_list description: %q", tool.Description)
 			}
+			if strings.Contains(tool.Description, "exit code 9") {
+				t.Errorf("read tool host_list has the update note: %q", tool.Description)
+			}
+			status, ok := tool.InputSchema.(map[string]any)["properties"].(map[string]any)["status"].(map[string]any)
+			items, _ := status["items"].(map[string]any)
+			desc, _ := status["description"].(string)
+			if !ok || status["type"] != "array" || items["type"] != "string" || !strings.Contains(desc, "array of strings; one value per element") {
+				t.Errorf("host_list status schema: %v", status)
+			}
 		}
 	}
 
@@ -228,6 +237,15 @@ func TestMCPAllowWrite(t *testing.T) {
 	for _, n := range []string{"host_retire", "monitor_delete", "service_delete", "user_remove", "org_ip_restriction_set"} {
 		if slices.Contains(names, n) {
 			t.Errorf("%s needs --allow-destructive", n)
+		}
+	}
+
+	for tool, err := range cs.Tools(context.Background(), nil) {
+		if err != nil {
+			t.Fatal(err)
+		}
+		if tool.Name == "monitor_create" && (!strings.Contains(tool.Description, `Pass "jq" to keep it small`) || !strings.Contains(tool.Description, "exit code 9")) {
+			t.Errorf("monitor_create description lacks the jq note: %q", tool.Description)
 		}
 	}
 

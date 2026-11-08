@@ -17,6 +17,8 @@
 
 Commands that open an editor (`edit`), run a local command (`check run`, `annotation wrap`), never end (`log tail`) or manage credentials (`auth`) are never exposed. `api` is exposed for GET requests only. A file given with `--file` becomes a `body` argument, since the server cannot read files on the agent's side.
 
+Tools that change something print the resource after the change, which can be large (`host retire` prints the whole host). Pass `jq` to keep it small, for example `{id, name}`, or `.[] | {id}` for commands that print an array. If `jq` does not fit the output after a successful change, the tool returns the unfiltered output as an error with exit code 9: the change was applied, so do not retry it. Arguments of repeatable flags (`status` of `host_list`, `host` of `metric_latest`, ...) are arrays of strings in the input schema.
+
 Choose the narrowest set that does the job, and pair it with a read-only API key where you can.
 
 When alerts fire, the `triage` tool is a good first call: it returns the open alerts grouped by monitor, with the hosts, other failing monitors, metrics, graph annotations and downtimes around them, plus `next` commands that the other tools can run. Pass `otel_service` to include error logs and traces of an OpenTelemetry service. See [Triaging alerts](usage.md#triaging-alerts).
