@@ -184,6 +184,10 @@ type triageAlert struct {
 	Type      string `json:"type"`
 	OpenedAt  int64  `json:"openedAt"`
 	ClosedAt  *int64 `json:"closedAt"`
+	// Value is passed through from the API as is. For an open alert it can
+	// change over time, so it may be newer than the context, which stays
+	// around the opening.
+	Value json.RawMessage `json:"value"`
 
 	raw  json.RawMessage
 	host *auditHost // nil: no host, or not known (see hostGone)
@@ -193,6 +197,10 @@ type triageAlert struct {
 	probed     bool              // connectivity alerts: lastMetric was read
 	lastMetric *int64            // the newest probe metric, if any
 	logs       []json.RawMessage // alert IDs given: the status history
+	// changedAt and changedTo are the time and the status of the latest entry
+	// of the status history (detailed groups); nil when it could not be read.
+	changedAt *int64
+	changedTo string
 }
 
 type triageGroup struct {
@@ -611,17 +619,21 @@ func (t *triager) fetchContext(groups []*triageGroup) []*triageOtelOut {
 	}
 
 	for _, g := range detailed {
-		if len(t.opts.ids) > 0 {
-			for _, a := range g.alerts {
-				r.Go(func() {
-					logs, err := collect(t.c.NextIDPages(t.ctx, "/alerts/"+url.PathEscape(a.ID)+"/logs", "logs", nil, mackerel.PageSize), triageAlertLogLimit, nil)
-					if err != nil {
-						t.addError(g, "alertLogs", fmt.Errorf("alert %s: %w", a.ID, err))
-						return
-					}
+		// 状態の履歴は、アラートの value がいつの値かを知るために読む。
+		// メトリクスと同じ、--max-hosts 件のアラートだけ（ホストのないアラートは新しい順に --max-hosts 件）。
+		// アラート ID を指定したときは全アラートを読み、履歴そのものも出力する
+		for _, a := range t.historyAlerts(g) {
+			r.Go(func() {
+				logs, err := collect(t.c.NextIDPages(t.ctx, "/alerts/"+url.PathEscape(a.ID)+"/logs", "logs", nil, mackerel.PageSize), triageAlertLogLimit, nil)
+				if err != nil {
+					t.addError(g, "alertLogs", fmt.Errorf("alert %s: %w", a.ID, err))
+					return
+				}
+				a.changedAt, a.changedTo = latestStatusChange(logs)
+				if len(t.opts.ids) > 0 {
 					a.logs = logs
-				})
-			}
+				}
+			})
 		}
 		if src["metrics"] {
 			t.fetchMetrics(r, g)
@@ -681,6 +693,44 @@ func (t *triager) fetchContext(groups []*triageGroup) []*triageOtelOut {
 		}
 	}
 	return otel
+}
+
+// historyAlerts returns the alerts whose status history is read: all of them
+// when alert IDs are given, otherwise those whose hosts get context, and the
+// newest --max-hosts alerts that have no host.
+func (t *triager) historyAlerts(g *triageGroup) []*triageAlert {
+	if len(t.opts.ids) > 0 {
+		return g.alerts
+	}
+	out := slices.Clone(g.hosts)
+	hostless := 0
+	for _, a := range g.alerts {
+		if a.HostID == "" && hostless < t.opts.maxHosts {
+			out = append(out, a)
+			hostless++
+		}
+	}
+	return out
+}
+
+// latestStatusChange returns the time and the status of the newest entry of
+// an alert's status history, or nil when there is none.
+func latestStatusChange(logs []json.RawMessage) (*int64, string) {
+	var at *int64
+	var status string
+	for _, raw := range logs {
+		var l struct {
+			Status    string `json:"status"`
+			CreatedAt *int64 `json:"createdAt"`
+		}
+		if json.Unmarshal(raw, &l) != nil || l.CreatedAt == nil {
+			continue
+		}
+		if at == nil || *l.CreatedAt > *at {
+			at, status = l.CreatedAt, l.Status
+		}
+	}
+	return at, status
 }
 
 // downtimeCovers reports whether a downtime's scopes cover a monitor, given
@@ -988,6 +1038,13 @@ func shellQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
+// statusChangedOutsideRange reports whether the alert changed status after
+// it opened, and that change is outside the
+// context range.
+func (a *triageAlert) statusChangedOutsideRange(rng triageRange) bool {
+	return a.changedAt != nil && *a.changedAt != a.OpenedAt && (*a.changedAt < rng.From || *a.changedAt > rng.To)
+}
+
 func hostLabel(a *triageAlert) string {
 	if a.host != nil && a.host.Name != "" {
 		return a.host.Name
@@ -1030,6 +1087,13 @@ func (t *triager) notes(g *triageGroup) []triageNote {
 				hostLabel(a), epochString(*a.lastMetric), beforeAfter(*a.lastMetric, a.OpenedAt)), res)
 		}
 	}
+	for _, a := range g.alerts {
+		if !a.statusChangedOutsideRange(g.rng) {
+			continue
+		}
+		msg := fmt.Sprintf("the alert %q changed to %s at %s, %s after it opened, outside the context range", a.ID, a.changedTo, epochString(*a.changedAt), humanDuration(time.Duration(*a.changedAt-a.OpenedAt)*time.Second))
+		add("status-changed", msg, &triageResource{"alert", a.ID, ""})
+	}
 	for _, raw := range g.annotations {
 		var an struct {
 			ID      string `json:"id"`
@@ -1068,6 +1132,16 @@ func (t *triager) notes(g *triageGroup) []triageNote {
 	return notes
 }
 
+// metricGetCommand is the "metric get" command that reads a shown metric
+// over the given --since (and --until) flags.
+func metricGetCommand(m triageMetric, span string) string {
+	target := "--host " + shellQuote("id:"+m.HostID)
+	if m.Service != "" {
+		target = "--service " + shellQuote(m.Service)
+	}
+	return fmt.Sprintf("mcrl metric get %s --name %s %s", target, shellQuote(m.Name), span)
+}
+
 func (t *triager) next(g *triageGroup) []string {
 	next := []string{}
 	if !g.detailed {
@@ -1090,12 +1164,39 @@ func (t *triager) next(g *triageGroup) []string {
 			continue
 		}
 		seen[key] = true
-		target := "--host " + shellQuote("id:"+m.HostID)
-		if m.Service != "" {
-			target = "--service " + shellQuote(m.Service)
-		}
-		next = append(next, fmt.Sprintf("mcrl metric get %s --name %s %s", target, shellQuote(m.Name), since))
+		next = append(next, metricGetCommand(m, since))
 	}
+	// 状態が変わった時刻の前後は context の範囲外なので、別に読む
+	var recent []string
+	recentDone := false
+	for _, a := range g.alerts {
+		if !a.statusChangedOutsideRange(g.rng) {
+			continue
+		}
+		at := time.Unix(*a.changedAt, 0)
+		until := at.Add(t.opts.window)
+		if until.After(t.opts.now) {
+			until = t.opts.now
+		}
+		span := fmt.Sprintf("--since @%d --until @%d", at.Add(-t.opts.window).Unix(), until.Unix())
+		n := 0
+		for _, m := range g.metrics {
+			if n >= 3 {
+				break
+			}
+			// ホストのメトリクスは、そのアラートのホストのものだけ
+			if (m.Service == "" && m.HostID == a.HostID) || (m.Service != "" && a.HostID == "") {
+				next = append(next, metricGetCommand(m, span))
+				if !recentDone {
+					// value は今に近いかもしれないので、直近 --window も 1 グループにつき最初のアラート分だけ読む
+					recent = append(recent, metricGetCommand(m, "--since "+humanDuration(t.opts.window)))
+				}
+				n++
+			}
+		}
+		recentDone = true
+	}
+	next = append(next, recent...)
 	for _, a := range g.hosts {
 		if a.host != nil && !a.host.IsRetired {
 			next = append(next, "mcrl host monitor-status "+shellQuote("id:"+a.HostID)+" --expand")
@@ -1116,7 +1217,8 @@ func (t *triager) next(g *triageGroup) []string {
 	return next
 }
 
-// alertJSON is the API's alert with "host" (and "logs") added.
+// alertJSON is the API's alert with "host", "statusChangedAt" and, when alert
+// IDs are given, "logs" added.
 func (t *triager) alertJSON(a *triageAlert) (json.RawMessage, error) {
 	var m map[string]json.RawMessage
 	if err := json.Unmarshal(a.raw, &m); err != nil {
@@ -1145,6 +1247,13 @@ func (t *triager) alertJSON(a *triageAlert) (json.RawMessage, error) {
 			return nil, err
 		}
 		m["host"] = b
+	}
+	if a.changedAt != nil {
+		b, err := json.Marshal(*a.changedAt)
+		if err != nil {
+			return nil, err
+		}
+		m["statusChangedAt"] = b
 	}
 	if a.logs != nil {
 		b, err := json.Marshal(a.logs)
@@ -1269,7 +1378,8 @@ is the group's earliest alert, for up to --max-hosts hosts per group (the
 newest alerts first).
 
 Give alert IDs ("-" reads them from stdin) to look at those alerts only,
-closed ones included; each alert then also has its status history ("logs").
+closed ones included; each alert then also has its whole status history
+("logs", up to 50 changes).
 
 Output:
   {"generatedAt", "summary": {"alerts", "open", "critical", "warning",
@@ -1279,7 +1389,8 @@ Each group:
   "monitor"   the monitor as the API returns it
   "alerts"    the alerts as the API returns them, newest first, with
               "host": {"id", "name", "status", "roles", "isRetired",
-              "cpuCount", "lastMetricAt" (connectivity alerts)}
+              "cpuCount", "lastMetricAt" (connectivity alerts)}, and
+              "statusChangedAt" (alerts whose hosts get context)
   "context"   {"range": {"from", "to"}, "metrics": [{"hostId" or "service",
               "name", "points"}], "otherMonitors": [{"hostId", "monitorId",
               "name", "type", "status"}], "annotations", "downtimes"}
@@ -1287,6 +1398,19 @@ Each group:
   "next"      mcrl commands to look further, ready to run
   "errors"    [{"source", "message"}] for what could not be read
 A source turned off with --skip or --only is left out of "context".
+
+An alert's "value" comes from the API as is. For an open alert it can
+change over time, so it may be newer than the metrics in "context", which
+stay around the earliest "openedAt". "statusChangedAt" (epoch seconds) is the
+time of the alert's latest status change, read from the newest entry of its
+status history; for an alert that never changed status it equals "openedAt".
+The note status-changed is added when that time is outside the context
+range; "next" then has commands that read the metrics around the change and
+over the last --window.
+The history is read only for the alerts whose hosts get context (up to
+--max-hosts per group, newest first; for alerts without a host, the newest
+--max-hosts of the group), or for all alerts when alert IDs are given. The
+other alerts have no "statusChangedAt" and no such note.
 
 Metrics: host monitors read the monitored metric of each host, service
 monitors the service metric. Rate monitors are not computed; their source
@@ -1307,6 +1431,8 @@ Notes:
   host-not-working        the host is standby, maintenance or poweroff
   metrics-stopped         connectivity alert whose host last sent metrics
                           before the alert opened
+  status-changed          an alert's latest status change is outside the
+                          context range
   recent-annotation       a graph annotation in the range
   many-hosts              two or more hosts alert on the monitor
   other-monitors-failing  other monitors are not OK on the host
@@ -1320,7 +1446,7 @@ keep --window at 15m or less to get them.
 
 Requests run 4 at a time. When a request fails, the rest is still returned
 with the failure in "errors", and the exit code is 0.`, "Read",
-			"GET /api/v0/alerts", "GET /api/v0/alerts/<id> (alert IDs)", "GET /api/v0/alerts/<id>/logs (alert IDs)",
+			"GET /api/v0/alerts", "GET /api/v0/alerts/<id> (alert IDs)", "GET /api/v0/alerts/<id>/logs",
 			"GET /api/v0/monitors", "GET /api/v0/hosts", "GET /api/v0/hosts/<id>", "GET /api/v0/tsdb/latest",
 			"GET /api/v0/hosts/<id>/monitored-statuses", "GET /api/v0/hosts/<id>/metrics", "GET /api/v0/hosts/<id>/metric-names",
 			"GET /api/v0/services/<name>/metrics", "GET /api/v0/services/<name>/metric-names",

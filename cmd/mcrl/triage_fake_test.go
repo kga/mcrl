@@ -15,9 +15,11 @@ import (
 //
 //	monCONN0001 CRITICAL  off-1 (poweroff), metrics stopped before the alert
 //	monCPU00001 CRITICAL  web-1, cpu%, muted monitor
-//	monDISK0001 CRITICAL  web-2, web-1, web-3 (newest first), disk%
+//	monDISK0001 CRITICAL  web-2, web-1, web-3 (newest first), disk%;
+//	                      alDISK00002 opened CRITICAL and changed to WARNING
+//	                      after the context range, the others never changed
 //	monCTR00001 WARNING   retired host, container-cpu%
-//	monSVC00001 WARNING   service monitor of web
+//	monSVC00001 WARNING   service monitor of web (its status history is denied)
 //	monSWAP0001 WARNING   web-2, swap% (the host has no memory.swap_used)
 func serveTriageFixture(w http.ResponseWriter, r *http.Request, reqBody []byte) bool {
 	writeJSON := func(status int, body string) bool {
@@ -45,6 +47,10 @@ func serveTriageFixture(w http.ResponseWriter, r *http.Request, reqBody []byte) 
 			{"id":"alCTR000001","status":"WARNING","monitorId":"monCTR00001","type":"host","hostId":"hostRETIRED","value":88,"openedAt":1799999800}]}`,
 		"GET /api/v0/alerts/alDISK00001":      `{"id":"alDISK00001","status":"CRITICAL","monitorId":"monDISK0001","type":"host","hostId":"hostWEB0001","value":96.2,"openedAt":1799999400}`,
 		"GET /api/v0/alerts/alDISK00001/logs": `{"logs":[{"id":"log1","status":"CRITICAL","trigger":"monitoring","createdAt":1799999400}]}`,
+		// 先頭の CRITICAL から、範囲（〜1799999900）の外で WARNING に変わった
+		"GET /api/v0/alerts/alDISK00002/logs": `{"logs":[
+			{"id":"log3","status":"WARNING","trigger":"monitoring","createdAt":1799999950},
+			{"id":"log2","status":"CRITICAL","trigger":"monitoring","createdAt":1799999500}]}`,
 		"GET /api/v0/hosts": `{"hosts":[
 			{"id":"hostWEB0001","name":"web-1","status":"working","roles":{"web":["app"]},"meta":{"cpu":[{},{}]}},
 			{"id":"hostWEB0002","name":"web-2","status":"working","roles":{"web":["app"]}},
@@ -71,6 +77,20 @@ func serveTriageFixture(w http.ResponseWriter, r *http.Request, reqBody []byte) 
 	}
 	q := r.URL.Query()
 	switch {
+	case route == "GET /api/v0/alerts/alSVC000001/logs":
+		// 経過の取得の失敗: アラートは返り、errors に入る
+		return writeJSON(http.StatusForbidden, `{"error":{"message":"Forbidden"}}`)
+	case strings.HasPrefix(route, "GET /api/v0/alerts/") && strings.HasSuffix(route, "/logs"):
+		// 状態が変わっていないアラート: 経過は開いたときの 1 件だけ
+		id := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/api/v0/alerts/"), "/logs")
+		openedAt := map[string]string{
+			"alSWAP00001": "1799999100", "alDISK00003": "1799999000", "alCPU000001": "1799999600",
+			"alCONN00001": "1799999700", "alCTR000001": "1799999800",
+		}[id]
+		if openedAt == "" {
+			return false
+		}
+		return writeJSON(http.StatusOK, `{"logs":[{"id":"log-`+id+`","status":"CRITICAL","trigger":"monitoring","createdAt":`+openedAt+`}]}`)
 	case route == "GET /api/v0/hosts/hostWEB0003/monitored-statuses":
 		// 一部の取得の失敗: 他の情報は返り、errors に入る
 		return writeJSON(http.StatusForbidden, `{"error":{"message":"Forbidden"}}`)
