@@ -1,13 +1,11 @@
 #!/bin/sh
 # 検証用組織にテスト用のトレース 3 本とログ 3 件を OTLP/HTTP (JSON) で送る。
-# サービス名は mcrl-otel。リポジトリ直下で `mise exec -- dev/otlp/send.sh` として実行する。
-# キーは MACKEREL_APIKEY_WRITE（Write 権限）を使い、表示しない。
+# サービス名は mcrl-otel。リポジトリ直下で `dev/otlp/send.sh` として実行する。
+# キーは Write 権限のもの（MACKEREL_APIKEY_WRITE、なければ mcrl のプロファイル。../write-key.sh）を使い、表示しない。
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
-if [ -z "${MACKEREL_APIKEY_WRITE:-}" ]; then
-  echo "error: MACKEREL_APIKEY_WRITE is not set" >&2
-  exit 1
-fi
+. "$here/../write-key.sh"
+load_write_key
 out=$(mktemp -d)
 trap 'rm -rf "$out"' EXIT
 OUT=$out python3 -I "$here/generate.py" > "$out/trace-ids.txt"
