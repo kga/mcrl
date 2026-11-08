@@ -15,14 +15,11 @@ esac
 name="mcrl-fake-host-$index"
 state_dir="$here/state/$name"
 
-# MACKEREL_APIKEY_WRITE を MACKEREL_APIKEY として export する（値は表示しない）
+. "$here/../write-key.sh"
+
+# Write 権限の API キー（../write-key.sh）を MACKEREL_APIKEY として export する（値は表示しない）
 require_write_key() {
-  if [ -z "${MACKEREL_APIKEY_WRITE:-}" ]; then
-    echo "error: MACKEREL_APIKEY_WRITE is not set." >&2
-    echo "       Write 権限のある API キーを mise.local.toml などで設定し、" >&2
-    echo "       'mise exec -- $0' のように実行してください。" >&2
-    exit 1
-  fi
+  load_write_key
   MACKEREL_APIKEY=$MACKEREL_APIKEY_WRITE
   export MACKEREL_APIKEY
 }

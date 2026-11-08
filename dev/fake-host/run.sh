@@ -1,6 +1,6 @@
 #!/bin/sh
 # fake host コンテナを起動する。 usage: run.sh [index]
-# API キーは呼び出し元の環境変数 MACKEREL_APIKEY_WRITE から取り、
+# Write 権限の API キー（MACKEREL_APIKEY_WRITE、なければ mcrl のプロファイル。../write-key.sh）を、
 # コンテナには MACKEREL_APIKEY として（値をコマンドラインに載せずに）渡す。
 set -eu
 . "$(cd "$(dirname "$0")" && pwd)/lib.sh"

@@ -3,8 +3,10 @@
 `mcrl log` / `mcrl trace` / `mcrl apm` を実データで試すために、検証用組織へテスト用のトレースとログを送る。
 
 ```sh
-mise exec -- dev/otlp/send.sh
+dev/otlp/send.sh
 ```
+
+Write 権限の API キーは、mcrl のプロファイル `mcrl-dev-rw`（`MCRL_DEV_WRITE_PROFILE` で変えられる）から取る。環境変数 `MACKEREL_APIKEY_WRITE` があればそちらを使う（`dev/write-key.sh`）。
 
 - サービス名 `mcrl-otel`、環境 `test` のトレース 3 本（`/users/{id}` 120ms、`/orders` 900ms でエラー、`/health` 3ms。それぞれ DB の子スパン付き）と、対応するログ 3 件を送る
 - ログの本文は JSON（`{"req": {...}, "res": {"status": ...}, "msg": ...}`）なので `--where 'res.status>=500'` などを試せる

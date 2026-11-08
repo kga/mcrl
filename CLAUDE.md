@@ -33,4 +33,4 @@ Mackerel API のための新しい CLI。
 - リリースは tagpr で行う（mcrl-design の `08-quality-release.md`）。リリース PR をマージするとタグが打たれ、`release.yml` がテスト・ビルド・公開まで進める
 - GitHub の設定は mcrl-design の `repository-settings.md` にまとめてある
 - `.github/workflows/` を変えたら `gh actions-lock` で `actions.lock` を更新して同じ PR に含める。同じリポジトリの action・reusable workflow は `./` ではなく `$/` で呼ぶ
-- 実 API での確認は検証用組織だけで行い、作ったリソースは片付ける。API キーは `mise.local.toml` の `MACKEREL_APIKEY`（Read）と `MACKEREL_APIKEY_WRITE`（Write、擬似ホストと更新系の確認用）
+- 実 API での確認は検証用組織だけで行い、作ったリソースは片付ける。キーは mcrl のプロファイルで扱う: 参照は `mcrl-dev-ro`（`mise.local.toml` の `MCRL_PROFILE` でこのディレクトリの既定にしている）、更新系と擬似ホスト・`dev/otlp` は `mcrl-dev-rw`（`--profile mcrl-dev-rw`。`dev/` のスクリプトは `dev/write-key.sh` で自動的に使う）
