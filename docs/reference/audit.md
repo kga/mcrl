@@ -34,6 +34,11 @@ Checks:
   user-without-mfa           warning  users who have not enabled two-factor authentication
   expired-invitation         info     invitations past their expiry
 
+The host checks cover hosts in every status. mcrl host list without --status
+shows only working and standby hosts (as the API does), so use
+mcrl host list --status all or mcrl host get id:<id> to look up a reported
+host. Each host finding has its status in details.status.
+
 Hosts are judged by the newest of loadavg5, cpu.user.percentage, memory.used
 (GET /tsdb/latest). For a host that has some of them there with a null
 value and none with a value, the time-series API (GET /hosts/<id>/metrics)

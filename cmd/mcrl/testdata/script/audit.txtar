@@ -31,6 +31,8 @@ exec mcrl audit --now @1800000000 --check host-inactive --jq '.[0].details | key
 stdout '^createdAt,status$'
 # 動いているホストで、null を返したのに範囲内に点がないもの（hostGONE0001）は host-stale-metrics が指摘する。
 # 何も確かめていない動いているホスト（hostWEB0001 などは値がある）は指摘されない
+exec mcrl audit --now @1800000000 --check host-without-role --jq '.[] | [.resource.id, .details.status] | join(" ")'
+stdout '^hostOFF0001 poweroff$'
 exec mcrl audit --now @1800000000 --check host-stale-metrics --jq '.[] | [.resource.id, .message] | join(" | ")'
 cmp stdout want-stale.txt
 exec mcrl audit --now @1800000000 --check host-stale-metrics --jq '.[1].details | keys | join(",")'
