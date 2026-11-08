@@ -1,5 +1,13 @@
 # Changelog
 
+## [v0.4.1](https://github.com/kga/mcrl/compare/v0.4.0...v0.4.1) - 2026-11-08
+
+### Dependencies
+- Bump github.com/spf13/pflag from 1.0.9 to 1.1.0 in the go-modules group by @dependabot[bot] in https://github.com/kga/mcrl/pull/59
+### Other changes
+- Test on macOS and Windows in CI and update dependencies weekly by @kga in https://github.com/kga/mcrl/pull/57
+- Auto-merge Dependabot patch and minor updates and stop grouping them by @kga in https://github.com/kga/mcrl/pull/60
+
 ## [v0.4.0](https://github.com/kga/mcrl/compare/v0.3.0...v0.4.0) - 2026-11-08
 
 ### New features
