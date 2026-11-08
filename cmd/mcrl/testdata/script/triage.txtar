@@ -153,6 +153,32 @@ stdout '^1 log1 mcrl metric get --host id:hostWEB0001 --name filesystem.root.siz
 grep 'GET /api/v0/alerts/alDISK00001/logs' $WORK/requests.log
 ! grep 'GET /api/v0/alerts$' $WORK/requests.log
 
+# disk% はファイルシステムを used / size の組として扱う。範囲に点がないものは捨て、
+# 使用率の高い順に 5 つ。外したものは errors に使用率つきで書く。next は組で出す。
+# 順位は /tsdb/latest の現在値で付けるので、点を読むのは上位の 5 組（10 系列）だけ
+rm $WORK/requests.log
+exec mcrl triage --now @1800000000 alMAC000001 --jq '.groups[0].context.metrics[] | .name'
+cmp stdout want-mac-metrics.txt
+grep -count=1 'GET /api/v0/hosts/hostMAC0001/metric-names$' $WORK/requests.log
+grep -count=1 'GET /api/v0/tsdb/latest\?hostId=hostMAC0001&name=filesystem.data1.used' $WORK/requests.log
+grep -count=10 'GET /api/v0/hosts/hostMAC0001/metrics\?' $WORK/requests.log
+exec mcrl triage --now @1800000000 alMAC000001 --jq '.groups[0].errors[].message'
+cmp stdout want-mac-errors.txt
+exec mcrl triage --now @1800000000 alMAC000001 --jq '.groups[0].next[] | select(startswith("mcrl metric get"))'
+cmp stdout want-mac-next.txt
+
+# /tsdb/latest が null を返すホスト（しばらくメトリクスを送っていない）は、
+# 範囲内の点の最大使用率で順位を付ける。同じ結果で、errors の使用率は peak
+rm $WORK/requests.log
+exec mcrl triage --now @1800000000 alMAC000002 --jq '.groups[0].context.metrics[] | .name'
+cmp stdout want-mac-metrics.txt
+grep -count=1 'GET /api/v0/tsdb/latest\?hostId=hostMAC0002&name=filesystem.data1.used' $WORK/requests.log
+grep -count=28 'GET /api/v0/hosts/hostMAC0002/metrics\?' $WORK/requests.log
+exec mcrl triage --now @1800000000 alMAC000002 --jq '.groups[0].errors[].message'
+cmp stdout want-mac2-errors.txt
+exec mcrl triage --now @1800000000 alMAC000002 --jq '.groups[0].next[] | select(startswith("mcrl metric get"))'
+cmp stdout want-mac2-next.txt
+
 # 使い方の誤り
 ! exec mcrl triage --skip nope
 grep '^2$' $WORK/exitcode
@@ -258,12 +284,15 @@ mcrl alert logs alDISK00002
 mcrl metric get --host id:hostWEB0002 --name filesystem.root.size --since @1799987300
 mcrl metric get --host id:hostWEB0002 --name filesystem.root.used --since @1799987300
 mcrl metric get --host id:hostWEB0002 --name filesystem.vdb.size --since @1799987300
+mcrl metric get --host id:hostWEB0002 --name filesystem.vdb.used --since @1799987300
 mcrl metric get --host id:hostWEB0002 --name filesystem.root.size --since @1799999050 --until @1800000000
 mcrl metric get --host id:hostWEB0002 --name filesystem.root.used --since @1799999050 --until @1800000000
 mcrl metric get --host id:hostWEB0002 --name filesystem.vdb.size --since @1799999050 --until @1800000000
+mcrl metric get --host id:hostWEB0002 --name filesystem.vdb.used --since @1799999050 --until @1800000000
 mcrl metric get --host id:hostWEB0002 --name filesystem.root.size --since 15m
 mcrl metric get --host id:hostWEB0002 --name filesystem.root.used --since 15m
 mcrl metric get --host id:hostWEB0002 --name filesystem.vdb.size --since 15m
+mcrl metric get --host id:hostWEB0002 --name filesystem.vdb.used --since 15m
 mcrl host monitor-status id:hostWEB0002 --expand
 mcrl annotation list --service web --since @1799911700
 -- want-otel.txt --
@@ -277,6 +306,33 @@ alDISK00003 CRITICAL 1799999000 1799999000
 mcrl metric get --host id:hostWEB0002 --name filesystem.root.size --since @1799999050 --until @1800000000
 mcrl metric get --host id:hostWEB0002 --name filesystem.root.used --since @1799999050 --until @1800000000
 mcrl metric get --host id:hostWEB0002 --name filesystem.vdb.size --since @1799999050 --until @1800000000
+mcrl metric get --host id:hostWEB0002 --name filesystem.vdb.used --since @1799999050 --until @1800000000
 mcrl metric get --host id:hostWEB0002 --name filesystem.root.size --since 15m
 mcrl metric get --host id:hostWEB0002 --name filesystem.root.used --since 15m
 mcrl metric get --host id:hostWEB0002 --name filesystem.vdb.size --since 15m
+mcrl metric get --host id:hostWEB0002 --name filesystem.vdb.used --since 15m
+-- want-mac-metrics.txt --
+filesystem.zzdata.size
+filesystem.zzdata.used
+filesystem.tmp.size
+filesystem.tmp.used
+filesystem.root.size
+filesystem.root.used
+filesystem.vm.size
+filesystem.vm.used
+filesystem.home.size
+filesystem.home.used
+-- want-mac-errors.txt --
+host hostMAC0001: 8 filesystems; only the 5 with the highest usage are shown, left out: disk1s3 (20.0% now), disk1s1 (10.0% now), recovery (5.0% now); 6 filesystems without a current value were not considered
+-- want-mac-next.txt --
+mcrl metric get --host id:hostMAC0001 --name filesystem.zzdata.size --since @1799987700
+mcrl metric get --host id:hostMAC0001 --name filesystem.zzdata.used --since @1799987700
+mcrl metric get --host id:hostMAC0001 --name filesystem.tmp.size --since @1799987700
+mcrl metric get --host id:hostMAC0001 --name filesystem.tmp.used --since @1799987700
+-- want-mac2-errors.txt --
+host hostMAC0002: 8 filesystems; only the 5 with the highest usage are shown, left out: disk1s3 (peak 20.0%), disk1s1 (peak 10.0%), recovery (peak 5.0%)
+-- want-mac2-next.txt --
+mcrl metric get --host id:hostMAC0002 --name filesystem.zzdata.size --since @1799987700
+mcrl metric get --host id:hostMAC0002 --name filesystem.zzdata.used --since @1799987700
+mcrl metric get --host id:hostMAC0002 --name filesystem.tmp.size --since @1799987700
+mcrl metric get --host id:hostMAC0002 --name filesystem.tmp.used --since @1799987700

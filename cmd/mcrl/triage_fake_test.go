@@ -2,8 +2,10 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 )
@@ -24,6 +26,9 @@ import (
 //	monSWAP0001 WARNING   web-2, swap% (the host has no memory.swap_used)
 //	chkPING0001 WARNING   check monitoring, not in GET /monitors; GET /monitoring/checks/<id> names it
 //	chkGONE0001 WARNING   check monitoring of a deleted check (404)
+//
+// alMAC000001 (monMAC00001, disk% on mac-1) is not in the alert list; it is
+// read by ID. mac-1 has 14 filesystems, see macFilesystems.
 func serveTriageFixture(w http.ResponseWriter, r *http.Request, reqBody []byte) bool {
 	writeJSON := func(status int, body string) bool {
 		w.Header().Set("Content-Type", "application/json")
@@ -38,6 +43,7 @@ func serveTriageFixture(w http.ResponseWriter, r *http.Request, reqBody []byte) 
 			{"id":"monDISK0001","name":"disk usage","type":"host","isMute":false,"metric":"disk%","operator":">","warning":80,"critical":90,"scopes":["web"]},
 			{"id":"monCTR00001","name":"container cpu","type":"host","isMute":false,"metric":"container-cpu%","operator":">","warning":80,"critical":90},
 			{"id":"monSVC00001","name":"latency","type":"service","isMute":false,"service":"web","metric":"response.time","operator":">","warning":500,"critical":1000},
+			{"id":"monMAC00001","name":"mac disk","type":"host","isMute":false,"metric":"disk%","operator":">","warning":80,"critical":90,"scopes":["mac"]},
 			{"id":"monSWAP0001","name":"swap","type":"host","isMute":false,"metric":"swap%","operator":">","warning":50,"critical":80}]}`,
 		"GET /api/v0/alerts": `{"alerts":[
 			{"id":"alSWAP00001","status":"WARNING","monitorId":"monSWAP0001","type":"host","hostId":"hostWEB0002","value":60,"openedAt":1799999100},
@@ -51,9 +57,17 @@ func serveTriageFixture(w http.ResponseWriter, r *http.Request, reqBody []byte) 
 			{"id":"alCHK000001","status":"WARNING","monitorId":"chkPING0001","type":"check","message":"timeout","openedAt":1799990000},
 			{"id":"alCHK000002","status":"WARNING","monitorId":"chkPING0001","type":"check","message":"timeout","openedAt":1799989900},
 			{"id":"alCHK000003","status":"WARNING","monitorId":"chkGONE0001","type":"check","message":"timeout","openedAt":1799989000}]}`,
-		"GET /api/v0/monitoring/checks/chkPING0001": `{"check":{"id":"chkPING0001","name":"check-ping-sample"}}`,
-		"GET /api/v0/alerts/alDISK00001":            `{"id":"alDISK00001","status":"CRITICAL","monitorId":"monDISK0001","type":"host","hostId":"hostWEB0001","value":96.2,"openedAt":1799999400}`,
-		"GET /api/v0/alerts/alDISK00001/logs":       `{"logs":[{"id":"log1","status":"CRITICAL","trigger":"monitoring","createdAt":1799999400}]}`,
+		"GET /api/v0/monitoring/checks/chkPING0001":        `{"check":{"id":"chkPING0001","name":"check-ping-sample"}}`,
+		"GET /api/v0/alerts/alMAC000001":                   `{"id":"alMAC000001","status":"CRITICAL","monitorId":"monMAC00001","type":"host","hostId":"hostMAC0001","value":97,"openedAt":1799999400}`,
+		"GET /api/v0/alerts/alMAC000001/logs":              `{"logs":[{"id":"logmac","status":"CRITICAL","trigger":"monitoring","createdAt":1799999400}]}`,
+		"GET /api/v0/alerts/alMAC000002":                   `{"id":"alMAC000002","status":"CRITICAL","monitorId":"monMAC00001","type":"host","hostId":"hostMAC0002","value":97,"openedAt":1799999400}`,
+		"GET /api/v0/alerts/alMAC000002/logs":              `{"logs":[{"id":"logmac2","status":"CRITICAL","trigger":"monitoring","createdAt":1799999400}]}`,
+		"GET /api/v0/hosts/hostMAC0002":                    `{"host":{"id":"hostMAC0002","name":"mac-2","status":"working","roles":{"mac":["dev"]}}}`,
+		"GET /api/v0/hosts/hostMAC0002/monitored-statuses": `{"monitoredStatuses":[{"monitorId":"monMAC00001","status":"CRITICAL"}]}`,
+		"GET /api/v0/hosts/hostMAC0001":                    `{"host":{"id":"hostMAC0001","name":"mac-1","status":"working","roles":{"mac":["dev"]}}}`,
+		"GET /api/v0/hosts/hostMAC0001/monitored-statuses": `{"monitoredStatuses":[{"monitorId":"monMAC00001","status":"CRITICAL"}]}`,
+		"GET /api/v0/alerts/alDISK00001":                   `{"id":"alDISK00001","status":"CRITICAL","monitorId":"monDISK0001","type":"host","hostId":"hostWEB0001","value":96.2,"openedAt":1799999400}`,
+		"GET /api/v0/alerts/alDISK00001/logs":              `{"logs":[{"id":"log1","status":"CRITICAL","trigger":"monitoring","createdAt":1799999400}]}`,
 		// 先頭の CRITICAL から、範囲（〜1799999900）の外で WARNING に変わった
 		"GET /api/v0/alerts/alDISK00002/logs": `{"logs":[
 			{"id":"log3","status":"WARNING","trigger":"monitoring","createdAt":1799999950},
@@ -101,6 +115,9 @@ func serveTriageFixture(w http.ResponseWriter, r *http.Request, reqBody []byte) 
 	if route == "GET /api/v0/hosts" && r.URL.Query().Get("name") == "web-1" {
 		return writeJSON(http.StatusOK, `{"hosts":[{"id":"hostWEB0001","name":"web-1","status":"working","roles":{"web":["app"]}}]}`)
 	}
+	if route == "GET /api/v0/tsdb/latest" && strings.HasPrefix(r.URL.Query().Get("hostId"), "hostMAC000") {
+		return writeJSON(http.StatusOK, macLatest(r.URL.Query()))
+	}
 	if body, ok := bodies[route]; ok {
 		return writeJSON(http.StatusOK, body)
 	}
@@ -125,6 +142,26 @@ func serveTriageFixture(w http.ResponseWriter, r *http.Request, reqBody []byte) 
 	case route == "GET /api/v0/hosts/hostWEB0003/monitored-statuses":
 		// 一部の取得の失敗: 他の情報は返り、errors に入る
 		return writeJSON(http.StatusForbidden, `{"error":{"message":"Forbidden"}}`)
+	case route == "GET /api/v0/hosts/hostMAC0001/metric-names", route == "GET /api/v0/hosts/hostMAC0002/metric-names":
+		names := []string{"cpu.idle.percentage", "filesystem.orphan.used"}
+		for _, f := range macFilesystems {
+			names = append(names, "filesystem."+f.name+".size", "filesystem."+f.name+".used")
+		}
+		b, _ := json.Marshal(map[string][]string{"names": names})
+		return writeJSON(http.StatusOK, string(b))
+	case (route == "GET /api/v0/hosts/hostMAC0001/metrics" || route == "GET /api/v0/hosts/hostMAC0002/metrics") && strings.HasPrefix(q.Get("name"), "filesystem."):
+		for _, f := range macFilesystems {
+			if f.peak == 0 {
+				continue // no points in the range
+			}
+			switch q.Get("name") {
+			case "filesystem." + f.name + ".size":
+				return writeJSON(http.StatusOK, `{"metrics":[{"time":1799999460,"value":100},{"time":1799999520,"value":100}]}`)
+			case "filesystem." + f.name + ".used":
+				return writeJSON(http.StatusOK, fmt.Sprintf(`{"metrics":[{"time":1799999460,"value":%d},{"time":1799999520,"value":%d}]}`, f.peak/2, f.peak))
+			}
+		}
+		return writeJSON(http.StatusOK, `{"metrics":[]}`)
 	case strings.HasPrefix(route, "GET /api/v0/hosts/") && strings.HasSuffix(route, "/metric-names"):
 		return writeJSON(http.StatusOK, `{"names":["cpu.idle.percentage","filesystem.root.size","filesystem.root.used","filesystem.vdb.size","filesystem.vdb.used","memory.swap_free","memory.swap_total"]}`)
 	case strings.HasPrefix(route, "GET /api/v0/hosts/") && strings.HasSuffix(route, "/metrics"),
@@ -184,4 +221,43 @@ func serveTriageFixture(w http.ResponseWriter, r *http.Request, reqBody []byte) 
 		return writeJSON(http.StatusOK, `{"results":[{"traceId":"t1","title":"[HTTP]GET","traceLatencyMillis":2100}],"hasNextPage":false}`)
 	}
 	return false
+}
+
+// macFilesystems are the 14 filesystems of mac-1 in name order. peak is the
+// usage (size is 100) at the last point; 0 means no points in the range. The
+// most used one sorts last.
+var macFilesystems = []struct {
+	name string
+	peak int
+}{
+	{"data1", 0}, {"data2", 0}, {"disk1s1", 10}, {"disk1s2", 0}, {"disk1s3", 20}, {"disk1s4", 0}, {"home", 30},
+	{"preboot", 0}, {"recovery", 5}, {"root", 50}, {"tmp", 60}, {"update", 0}, {"vm", 40}, {"zzdata", 97},
+}
+
+// macLatest answers GET /tsdb/latest for mac-1 (hostMAC0001), which has a
+// current value for every filesystem series that has points: the last point.
+// mac-2 (hostMAC0002) has only null values, as a host that stopped sending
+// metrics does, so its filesystems are ranked from their points.
+func macLatest(q url.Values) string {
+	host := q.Get("hostId")
+	vals := map[string]any{}
+	for _, name := range q["name"] {
+		vals[name] = nil
+		if host != "hostMAC0001" {
+			continue
+		}
+		for _, f := range macFilesystems {
+			if f.peak == 0 {
+				continue
+			}
+			switch name {
+			case "filesystem." + f.name + ".size":
+				vals[name] = map[string]any{"time": 1799999520, "value": 100}
+			case "filesystem." + f.name + ".used":
+				vals[name] = map[string]any{"time": 1799999520, "value": f.peak}
+			}
+		}
+	}
+	b, _ := json.Marshal(map[string]any{"tsdbLatest": map[string]any{host: vals}})
+	return string(b)
 }
