@@ -74,6 +74,9 @@ var auditChecks = []auditCheck{
 // a host last sent metrics. mackerel-agent sends them on Linux and Windows.
 var auditProbeMetrics = []string{"loadavg5", "cpu.user.percentage", "memory.used"}
 
+// auditConcurrency is how many time-series lookups of audit run at once.
+const auditConcurrency = 4
+
 // auditLatestChunk is the number of hosts per GET /tsdb/latest request.
 const auditLatestChunk = 100
 
@@ -174,7 +177,7 @@ func (a *auditor) latestMetrics() (map[string]int64, error) {
 		ids[i] = h.ID
 	}
 	from, to := a.cutoff().Unix(), a.now.Unix()
-	latest, searched, err := latestMetricTimes(a.ctx, a.c, ids, func(string) (int64, int64) { return from, to })
+	latest, searched, err := latestMetricTimes(a.ctx, a.c, ids, func(string) (int64, int64) { return from, to }, auditConcurrency)
 	if err != nil {
 		return nil, err
 	}
@@ -193,7 +196,7 @@ func (a *auditor) latestMetrics() (map[string]int64, error) {
 // time-series API is read over the range rangeOf gives, for the null probes
 // only, in auditProbeMetrics order, and the time of the last point of the
 // first that has points is used. searched has the hosts for which that
-// was done. Over a day or more the API returns
+// was done, at most concurrency at a time. Over a day or more the API returns
 // aggregated points, so that time is approximate.
 //
 // In the responses seen so far, /tsdb/latest left out a metric name that the
@@ -202,7 +205,7 @@ func (a *auditor) latestMetrics() (map[string]int64, error) {
 // sent but not recently. This is not documented API behaviour; it is used
 // only to avoid requests for hosts that never send these metrics. A host
 // with no null probe gets no extra request.
-func latestMetricTimes(ctx context.Context, c *mackerel.Client, hostIDs []string, rangeOf func(hostID string) (from, to int64)) (latest map[string]int64, searched map[string]bool, err error) {
+func latestMetricTimes(ctx context.Context, c *mackerel.Client, hostIDs []string, rangeOf func(hostID string) (from, to int64), concurrency int) (latest map[string]int64, searched map[string]bool, err error) {
 	latest, nulls, err := latestFromTSDB(ctx, c, hostIDs)
 	if err != nil {
 		return nil, nil, err
@@ -212,7 +215,6 @@ func latestMetricTimes(ctx context.Context, c *mackerel.Client, hostIDs []string
 		mu       sync.Mutex
 		firstErr error
 	)
-	r := newTriageRunner()
 	var targets []string
 	for _, id := range hostIDs {
 		if _, ok := latest[id]; !ok && len(nulls[id]) > 0 && !searched[id] {
@@ -220,9 +222,15 @@ func latestMetricTimes(ctx context.Context, c *mackerel.Client, hostIDs []string
 			targets = append(targets, id)
 		}
 	}
+	// The caller says how many lookups may run at once: triage already runs
+	// this inside one slot of its own runner, so it asks for one at a time.
+	sem := make(chan struct{}, max(concurrency, 1))
+	var wg sync.WaitGroup
 	for _, id := range targets {
 		names := nulls[id]
-		r.Go(func() {
+		sem <- struct{}{} // targets start in order, so concurrency 1 is sequential
+		wg.Go(func() {
+			defer func() { <-sem }()
 			from, to := rangeOf(id)
 			t, ok, err := lastPointTime(ctx, c, id, names, from, to)
 			mu.Lock()
@@ -237,7 +245,7 @@ func latestMetricTimes(ctx context.Context, c *mackerel.Client, hostIDs []string
 			}
 		})
 	}
-	r.Wait()
+	wg.Wait()
 	if firstErr != nil {
 		return nil, nil, firstErr
 	}

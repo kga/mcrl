@@ -610,7 +610,7 @@ func (t *triager) fetchContext(groups []*triageGroup) []*triageOtelOut {
 			}
 			latest, _, err := latestMetricTimes(t.ctx, t.c, probeIDs, func(id string) (int64, int64) {
 				return opened[id] - int64(triageLastMetricLookback/time.Second), opened[id]
-			})
+			}, 1) // this already holds one slot of r: look up one host at a time
 			for _, g := range detailed {
 				for _, a := range g.alerts {
 					if a.Type != "connectivity" || a.HostID == "" {
