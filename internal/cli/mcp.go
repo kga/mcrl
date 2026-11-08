@@ -260,7 +260,7 @@ func (nopWriteCloser) Close() error { return nil }
 
 const mcpInstructions = `mcrl exposes the Mackerel API. Each tool runs the mcrl command of the same name and returns its JSON output unchanged.
 Resources can usually be given by ID or by name. Use the "jq" argument to keep large outputs small (e.g. ".[] | {id, name}"), and "limit" where available.
-A failed call returns {"error": {"code", "message", "hint", "exitCode"}}; exitCode follows mcrl's exit codes (2 usage, 3 auth, 4 not found, 5 invalid, 6 rate limited, 7 network).`
+A failed call returns {"error": {"code", "message", "hint", "exitCode"}}; exitCode follows mcrl's exit codes (2 usage, 3 auth, 4 not found, 5 invalid, 6 rate limited, 7 network, 9 change applied but --jq failed).`
 
 // newMCPServer builds the server with the tools allowed by o.
 func newMCPServer(f *cmdutil.Factory, o *mcpOptions) (*mcp.Server, error) {

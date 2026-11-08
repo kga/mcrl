@@ -1,10 +1,12 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -56,7 +58,35 @@ func printRaw(f *cmdutil.Factory, b []byte) error {
 	if err != nil {
 		return err
 	}
-	return p.PrintRaw(b)
+	return printResult(f, p, b)
+}
+
+// printResult prints b. After a change has been applied (f.Applied), a --jq
+// expression that fails at run time must not make the command look like it
+// failed: the unfiltered document is printed instead and the command exits
+// with ExitAppliedUnfiltered.
+func printResult(f *cmdutil.Factory, p *output.Printer, b []byte) error {
+	if !f.Applied || p.Query == nil {
+		return p.PrintRaw(b)
+	}
+	var buf bytes.Buffer
+	filtered := *p
+	filtered.Out = &buf
+	err := filtered.PrintRaw(b)
+	var je *output.JQError
+	if errors.As(err, &je) {
+		plain := *p
+		plain.Query = nil
+		if perr := plain.PrintRaw(b); perr != nil {
+			return perr
+		}
+		return &cmdutil.ExitError{Code: ExitAppliedUnfiltered, Err: fmt.Errorf("the change was applied, but the output could not be filtered (printed unfiltered): %w", je)}
+	}
+	if err != nil {
+		return err
+	}
+	_, err = f.IO.Out.Write(buf.Bytes())
+	return err
 }
 
 const (

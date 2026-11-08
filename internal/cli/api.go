@@ -179,7 +179,8 @@ func runAPI(cmd *cobra.Command, f *cmdutil.Factory, o *apiOptions, rawPath strin
 		_, err := f.IO.Out.Write(resp.Body)
 		return err
 	}
-	return printer.PrintRaw(resp.Body)
+	f.Applied = method != http.MethodGet && method != http.MethodHead
+	return printResult(f, printer, resp.Body)
 }
 
 func splitPathQuery(raw string) (string, url.Values, error) {
