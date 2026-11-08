@@ -6,9 +6,13 @@ name: tagpr
 # - tagpr が打ったタグで release.yml が起動する（GITHUB_TOKEN のタグは別 workflow を起動しない）
 # App の Client ID（変数 TAGPR_APP_CLIENT_ID）と秘密鍵（シークレット TAGPR_APP_PRIVATE_KEY）は
 # Environment「tagpr」に置き、main からだけ使えるようにしてある（PR のブランチの workflow からは読めない）。
+# GITHUB_TOKEN による push は workflow を起動しない。dependabot-auto-merge.yml が GITHUB_TOKEN で
+# auto-merge を設定した PR のマージでは、ここが起動しないことがある。その時は main で手動実行する
+# （次に人がマージした時にも、それまでの変更はまとめてリリース PR に入る）。
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read

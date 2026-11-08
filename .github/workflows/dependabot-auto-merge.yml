@@ -1,0 +1,32 @@
+name: Dependabot auto-merge
+
+# Dependabot の PR のうち、Go モジュールと GitHub Actions の patch・minor の更新に auto-merge を設定する。
+# マージは必須チェック ci-ok が通ってから GitHub が行う。major の更新と Docker のベースイメージは手で見る。
+# Dependabot が起動した workflow のトークンは既定で読み取りだけなので、job の permissions で書き込みを与える。
+# この workflow はコードを checkout も実行もしない（PR の内容は信用しない）。
+on: pull_request
+
+permissions:
+  contents: read
+
+jobs:
+  auto-merge:
+    if: github.event.pull_request.user.login == 'dependabot[bot]' && github.repository == 'kga/mcrl'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - id: meta
+        uses: dependabot/fetch-metadata@v3.1.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      # package-ecosystem はブランチ名（dependabot/<ecosystem>/...）から取られる
+      - if: >-
+          contains(fromJSON('["go_modules", "github_actions"]'), steps.meta.outputs.package-ecosystem) &&
+          contains(fromJSON('["version-update:semver-patch", "version-update:semver-minor"]'), steps.meta.outputs.update-type)
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh pr merge --auto --merge "$PR_URL"
