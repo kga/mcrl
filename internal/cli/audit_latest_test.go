@@ -46,7 +46,7 @@ func TestLatestMetricTimesConcurrency(t *testing.T) {
 			u, _ := url.Parse(srv.URL)
 			c := mackerel.New(&httpx.Client{BaseURL: u, APIKey: "k"})
 			ids := []string{"h1", "h2", "h3", "h4", "h5", "h6"}
-			latest, _, err := latestMetricTimes(t.Context(), c, ids, func(string) (int64, int64) { return 0, 1000 }, n)
+			latest, _, _, err := latestMetricTimes(t.Context(), c, ids, func(string) (int64, int64) { return 0, 1000 }, n)
 			if err != nil {
 				t.Fatal(err)
 			}

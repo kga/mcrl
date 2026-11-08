@@ -608,10 +608,11 @@ func (t *triager) fetchContext(groups []*triageGroup) []*triageOtelOut {
 					}
 				}
 			}
-			latest, _, err := latestMetricTimes(t.ctx, t.c, probeIDs, func(id string) (int64, int64) {
+			latest, _, failed, err := latestMetricTimes(t.ctx, t.c, probeIDs, func(id string) (int64, int64) {
 				return opened[id] - int64(triageLastMetricLookback/time.Second), opened[id]
 			}, 1) // this already holds one slot of r: look up one host at a time
 			for _, g := range detailed {
+				reported := map[string]bool{}
 				for _, a := range g.alerts {
 					if a.Type != "connectivity" || a.HostID == "" {
 						continue
@@ -619,6 +620,14 @@ func (t *triager) fetchContext(groups []*triageGroup) []*triageOtelOut {
 					if err != nil {
 						t.addError(g, "hosts", fmt.Errorf("last metric time: %w", err))
 						break
+					}
+					if herr := failed[a.HostID]; herr != nil {
+						// nothing is said about the host; the others keep their time
+						if !reported[a.HostID] {
+							reported[a.HostID] = true
+							t.addError(g, "hosts", fmt.Errorf("last metric time of host %s: %w", a.HostID, herr))
+						}
+						continue
 					}
 					a.probed = true
 					if v, ok := latest[a.HostID]; ok {

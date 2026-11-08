@@ -168,9 +168,23 @@ grep -count=3 'GET /api/v0/hosts/hostNONE0001/metrics' $WORK/requests.log
 exec mcrl triage --now @1800000000 alCONN00002 alCONN00003 alCONN00004 --jq '.groups[0].notes[] | select(.kind == "metrics-stopped") | .message'
 stdout -count=1 '^the host "slow-1" last sent metrics at 2027-01-15T05:13:20Z, 2h41m before the alert opened$'
 
+# 時系列 API が失敗したホストは、ホストごとに errors へ 1 件。他のホストの lastMetricAt と注記は残る。
+# 失敗したホストは lastMetricAt を持たない（null でもない）
+exec mcrl triage --now @1800000000 alCONN00002 alCONN00005 --jq '[.groups[0].errors[] | select(.source == "hosts") | .message] | length'
+stdout '^1$'
+exec mcrl triage --now @1800000000 alCONN00002 alCONN00005 --jq '.groups[0].errors[] | select(.source == "hosts") | .message'
+stdout 'last metric time of host hostFAIL0001: .*loadavg5'
+exec mcrl triage --now @1800000000 alCONN00002 alCONN00005 --jq '.groups[0].alerts[] | "\(.id) \(.host | has("lastMetricAt")) \(.host.lastMetricAt)"'
+cmp stdout want-fail.txt
+exec mcrl triage --now @1800000000 alCONN00002 alCONN00005 --jq '.groups[0].notes[] | select(.kind == "metrics-stopped") | .resource.id'
+stdout '^hostSLOW0001$'
+
 ! exec mcrl triage --role web
 grep '^2$' $WORK/exitcode
 
+-- want-fail.txt --
+alCONN00002 true 1799990000
+alCONN00005 false null
 -- want-slow.txt --
 alCONN00002 1799990000
 alCONN00003 null

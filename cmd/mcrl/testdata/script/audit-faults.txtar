@@ -1,5 +1,13 @@
 env MACKEREL_APIKEY=audit-fault-key
 
-# 時系列 API が 400 や 500 を返したら、メトリクスがないとは見なさず、エラーにする
-! exec mcrl audit --now @1800000000 --check host-inactive
-stderr 'host hostBAD(40001|50001): loadavg5'
+# 時系列 API が 400 や 500 を返したホストは、メトリクスがないとは見なさない。
+# 他のホストの結果は残り、失敗したホストは指摘の対象から外れて、エラーに列挙される
+! exec mcrl audit --now @1800000000 --check host-inactive,host-stale-metrics --jq '.[] | [.kind, .resource.id, .message] | join(" | ")'
+grep '^1$' $WORK/exitcode
+stdout -count=1 '^host-inactive \| hostNOTFOUND1 \| the host is standby and has sent no metric in the last 30d$'
+! stdout 'hostOKAY0001'
+! stdout 'hostBAD'
+stderr 'could not be read'
+stderr 'hostBAD40001: .*loadavg5'
+stderr 'hostBAD50001: .*loadavg5'
+! stderr 'hostOKAY0001|hostNOTFOUND1'

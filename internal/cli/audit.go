@@ -90,6 +90,7 @@ type auditor struct {
 	lists    map[string][]json.RawMessage // path -> items
 	latest   map[string]int64             // host ID -> newest probe metric time
 	searched map[string]bool              // host IDs whose time-series API was read
+	failed   map[string]error             // host ID -> why its time-series API could not be read
 	retired  map[string]*auditHost        // host ID -> host fetched by ID (nil: gone)
 }
 
@@ -177,11 +178,11 @@ func (a *auditor) latestMetrics() (map[string]int64, error) {
 		ids[i] = h.ID
 	}
 	from, to := a.cutoff().Unix(), a.now.Unix()
-	latest, searched, err := latestMetricTimes(a.ctx, a.c, ids, func(string) (int64, int64) { return from, to }, auditConcurrency)
+	latest, searched, failed, err := latestMetricTimes(a.ctx, a.c, ids, func(string) (int64, int64) { return from, to }, auditConcurrency)
 	if err != nil {
 		return nil, err
 	}
-	a.latest, a.searched = latest, searched
+	a.latest, a.searched, a.failed = latest, searched, failed
 	return latest, nil
 }
 
@@ -196,7 +197,9 @@ func (a *auditor) latestMetrics() (map[string]int64, error) {
 // time-series API is read over the range rangeOf gives, for the null probes
 // only, in auditProbeMetrics order, and the time of the last point of the
 // first that has points is used. searched has the hosts for which that
-// was done, at most concurrency at a time. Over a day or more the API returns
+// was done, at most concurrency at a time. A lookup that fails does not
+// discard the others: the host is in failed and has no time in latest, so
+// that nothing is claimed about it. Over a day or more the API returns
 // aggregated points, so that time is approximate.
 //
 // In the responses seen so far, /tsdb/latest left out a metric name that the
@@ -205,16 +208,14 @@ func (a *auditor) latestMetrics() (map[string]int64, error) {
 // sent but not recently. This is not documented API behaviour; it is used
 // only to avoid requests for hosts that never send these metrics. A host
 // with no null probe gets no extra request.
-func latestMetricTimes(ctx context.Context, c *mackerel.Client, hostIDs []string, rangeOf func(hostID string) (from, to int64), concurrency int) (latest map[string]int64, searched map[string]bool, err error) {
+func latestMetricTimes(ctx context.Context, c *mackerel.Client, hostIDs []string, rangeOf func(hostID string) (from, to int64), concurrency int) (latest map[string]int64, searched map[string]bool, failed map[string]error, err error) {
 	latest, nulls, err := latestFromTSDB(ctx, c, hostIDs)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	searched = map[string]bool{}
-	var (
-		mu       sync.Mutex
-		firstErr error
-	)
+	failed = map[string]error{}
+	var mu sync.Mutex
 	var targets []string
 	for _, id := range hostIDs {
 		if _, ok := latest[id]; !ok && len(nulls[id]) > 0 && !searched[id] {
@@ -237,19 +238,14 @@ func latestMetricTimes(ctx context.Context, c *mackerel.Client, hostIDs []string
 			defer mu.Unlock()
 			switch {
 			case err != nil:
-				if firstErr == nil {
-					firstErr = err
-				}
+				failed[id] = err
 			case ok:
 				latest[id] = t
 			}
 		})
 	}
 	wg.Wait()
-	if firstErr != nil {
-		return nil, nil, firstErr
-	}
-	return latest, searched, nil
+	return latest, searched, failed, nil
 }
 
 // latestFromTSDB reads GET /tsdb/latest. It returns the newest time of the
@@ -335,6 +331,26 @@ func formatOlderThan(d time.Duration) string {
 		return fmt.Sprintf("%dm", d/time.Minute)
 	}
 	return d.String()
+}
+
+// lookupError describes the hosts whose time-series API could not be read.
+// They are left out of host-inactive and host-stale-metrics, so no finding
+// says they sent no metric. nil when every lookup worked.
+func (a *auditor) lookupError() error {
+	if len(a.failed) == 0 {
+		return nil
+	}
+	ids := make([]string, 0, len(a.failed))
+	for id := range a.failed {
+		ids = append(ids, id)
+	}
+	slices.Sort(ids)
+	var b strings.Builder
+	fmt.Fprintf(&b, "the last metric time of %d host(s) could not be read, so they were not judged by host-inactive and host-stale-metrics", len(ids))
+	for _, id := range ids {
+		fmt.Fprintf(&b, "\n  %s: %v", id, a.failed[id])
+	}
+	return errors.New(b.String())
 }
 
 func (a *auditor) cutoff() time.Time { return a.now.Add(-a.olderThan) }
@@ -541,7 +557,7 @@ func (a *auditor) inactiveHosts() ([]auditFinding, error) {
 	}
 	var out []auditFinding
 	for _, h := range hosts {
-		if h.Status == "working" {
+		if h.Status == "working" || a.failed[h.ID] != nil {
 			continue
 		}
 		last, ok := latest[h.ID]
@@ -581,7 +597,7 @@ func (a *auditor) staleMetricHosts() ([]auditFinding, error) {
 	var out []auditFinding
 	for _, h := range hosts {
 		last, ok := latest[h.ID]
-		if h.Status != "working" {
+		if h.Status != "working" || a.failed[h.ID] != nil {
 			continue
 		}
 		if !ok {
@@ -1017,7 +1033,8 @@ not reported).`, "Read",
 			if err != nil {
 				return err
 			}
-			findings, err := newAuditor(cmd.Context(), c, now, older).run(checks)
+			aud := newAuditor(cmd.Context(), c, now, older)
+			findings, err := aud.run(checks)
 			if err != nil {
 				return err
 			}
@@ -1028,6 +1045,9 @@ not reported).`, "Read",
 				}
 			}
 			if err := printItems(f, items); err != nil {
+				return err
+			}
+			if err := aud.lookupError(); err != nil {
 				return err
 			}
 			if failOn != "" {
