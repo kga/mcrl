@@ -1,11 +1,12 @@
 version: 2
 updates:
   # 対象の workflow は actions.lock に載っているので、Dependabot が lockfile も同じ PR で更新する。
-  # CI の実行回数を抑えるため、エコシステムごとに 1 本の PR にまとめて月 1 回にする
+  # エコシステムごとに 1 本の PR にまとめて週 1 回。公開直後の版をすぐには取り込まないよう、
+  # cooldown で 7 日待つ（脆弱性の修正は、これとは別に Dependabot security updates がすぐに PR にする）
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: monthly
+      interval: weekly
     cooldown:
       default-days: 7
     groups:
@@ -14,7 +15,7 @@ updates:
   - package-ecosystem: gomod
     directory: /
     schedule:
-      interval: monthly
+      interval: weekly
     cooldown:
       default-days: 7
     groups:
@@ -24,6 +25,6 @@ updates:
   - package-ecosystem: docker
     directory: /
     schedule:
-      interval: monthly
+      interval: weekly
     cooldown:
       default-days: 7

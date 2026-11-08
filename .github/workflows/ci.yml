@@ -1,8 +1,8 @@
 name: CI
 
 # PR と main への push で回す。main の必須チェックは最後の ci-ok だけにしてある。
-# - Linux だけで回す。macOS・Windows はリリースのとき（release.yml）と手動実行で確かめる
-#   （private リポジトリの Actions は有料枠を消費し、macOS は Linux の約 10 倍の料金のため）
+# - テストは Linux（Go 2 版、-race つき）と macOS・Windows（最新の Go）で回す。
+#   公開リポジトリでは標準のランナーが無料なので、OS ごとの違いも PR の時点で見つける
 # - ドキュメント・dev/・LICENSE だけの PR では重いジョブを飛ばす。paths-ignore を使わないのは、
 #   workflow ごと起動しないと必須チェックが報告されず、PR をマージできなくなるため
 on:
@@ -54,8 +54,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        go: ["1.27.x", "1.26.x"]
-    runs-on: ubuntu-latest
+        include:
+          - { os: ubuntu-latest, go: "1.27.x", race: "-race" }
+          - { os: ubuntu-latest, go: "1.26.x", race: "-race" }
+          # -race は cgo が要るので、macOS・Windows では付けない（cross-platform.yml と同じ）
+          - { os: macos-latest, go: "1.27.x", race: "" }
+          - { os: windows-latest, go: "1.27.x", race: "" }
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7.0.1
@@ -67,7 +72,7 @@ jobs:
       - run: go vet ./...
       # エンドポイントの網羅（TestEndpointCoverage）と docs/reference が生成し直しても
       # 変わらないこと（TestReferenceUpToDate）も、ここで確かめる
-      - run: go test -race ./...
+      - run: go test ${{ matrix.race }} ./...
 
   lint:
     needs: changes
