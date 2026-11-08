@@ -259,7 +259,7 @@ type nopWriteCloser struct{ io.Writer }
 func (nopWriteCloser) Close() error { return nil }
 
 const mcpInstructions = `mcrl exposes the Mackerel API. Each tool runs the mcrl command of the same name and returns its JSON output unchanged.
-Resources can usually be given by ID or by name. Use the "jq" argument to keep large outputs small (e.g. ".[] | {id, name}"), and "limit" where available.
+Resources can usually be given by ID or by name. Use the "jq" argument to keep large outputs small (e.g. ".[] | {id, name}"), and "limit" where available. Tools that change something print the resource after the change; pass "jq" to them too, and do not retry a call that ended with exit code 9.
 A failed call returns {"error": {"code", "message", "hint", "exitCode"}}; exitCode follows mcrl's exit codes (2 usage, 3 auth, 4 not found, 5 invalid, 6 rate limited, 7 network, 9 change applied but --jq failed).`
 
 // newMCPServer builds the server with the tools allowed by o.
@@ -413,7 +413,8 @@ func buildMCPTool(root *cobra.Command, spec mcpToolSpec) (*mcpTool, error) {
 		case typ == "int":
 			s = &jsonschema.Schema{Type: "integer", Description: fl.Usage}
 		case typ == "stringArray" || typ == "stringSlice":
-			s = &jsonschema.Schema{Type: "array", Items: &jsonschema.Schema{Type: "string"}, Description: fl.Usage}
+			s = &jsonschema.Schema{Type: "array", Items: &jsonschema.Schema{Type: "string"},
+				Description: fl.Usage + " (array of strings; one value per element, --" + fl.Name + " may be given several times)"}
 		case typ == "string" || typ == "duration":
 			s = &jsonschema.Schema{Type: "string", Description: fl.Usage}
 		default:
@@ -471,8 +472,14 @@ func mcpDescription(cmd *cobra.Command, spec mcpToolSpec) string {
 	if spec.note != "" {
 		d += "\n\n" + spec.note
 	}
+	if spec.kind != mcpRead {
+		d += "\n\n" + mcpUpdateNote
+	}
 	return d + "\n\nCLI: " + cmd.UseLine()
 }
+
+// mcpUpdateNote is added to the description of every tool that changes something.
+const mcpUpdateNote = `The output is the resource after the change, which can be large. Pass "jq" to keep it small, e.g. "{id, name}" for one resource or ".[] | {id}" for commands that print an array. If "jq" does not fit the output after a successful change, the tool returns the unfiltered output with exit code 9: the change was applied, do not retry it.`
 
 func mcpAnnotations(spec mcpToolSpec) *mcp.ToolAnnotations {
 	no, yes := false, true
