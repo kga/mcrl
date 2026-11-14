@@ -1,5 +1,11 @@
 # Changelog
 
+## [v0.4.2](https://github.com/kga/mcrl/compare/v0.4.1...v0.4.2) - 2026-11-14
+
+### Dependencies
+- Bump Songmu/tagpr from 1.21.4 to 1.22.0 by @dependabot[bot] in https://github.com/kga/mcrl/pull/61
+- Bump docker/login-action from 4.7.0 to 4.8.0 by @dependabot[bot] in https://github.com/kga/mcrl/pull/62
+
 ## [v0.4.1](https://github.com/kga/mcrl/compare/v0.4.0...v0.4.1) - 2026-11-08
 
 ### Dependencies
